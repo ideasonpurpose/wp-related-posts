@@ -1,0 +1,39 @@
+{
+  "name": "ideasonpurpose/wp-related-posts",
+  "description": "Library for gathering related posts based on various weightings",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Joe Maller",
+      "email": "joe@ideasonpurpose.com",
+      "homepage": "https://www.ideasonpurpose.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "IdeasOnPurpose\\WP\\": "src"
+    }
+  },
+  "require-dev": {
+    "ideasonpurpose/wp-test-stubs": "dev-main@dev",
+    "php-stubs/wordpress-stubs": "^6",
+    "phpunit/phpunit": "^10"
+  },
+  "require": {},
+  "archive": {
+    "exclude": [
+      "/.git*",
+      "/tests",
+      "CHANGELOG.md",
+      "docker-compose.yml",
+      "package*",
+      "phpunit.xml"
+    ]
+  },
+  "repositories": [
+    {
+      "type": "git",
+      "url": "https://github.com/ideasonpurpose/wp-test-stubs"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "wp-related-posts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Library for gathering related posts based on various weightings",
+  "license": "MIT",
+  "author": "Joe Maller <joe@ideasonpurpose.com>",
+  "main": "composer.json",
+  "scripts": {
+    "composer": "npm run composer:install",
+    "composer:install": "docker compose run --rm composer",
+    "composer:update": "docker compose run --rm composer update",
+    "test": "docker compose run --rm test",
+    "test:watch": "docker compose run --rm test watch",
+    "version": "version-everything && auto-changelog && git add -u"
+  },
+  "prettier": "@ideasonpurpose/prettier-config",
+  "devDependencies": {
+    "@ideasonpurpose/prettier-config": "^0.0.6",
+    "@prettier/plugin-php": "^0.22.2",
+    "auto-changelog": "^2.4.0",
+    "prettier": "^3.2.5",
+    "version-everything": "^0.11.0"
+  },
+  "auto-changelog": {
+    "package": true,
+    "backfillLimit": 7
+  },
+  "version-everything": {
+    "files": [
+      "README.md"
+    ]
+  }
+}
