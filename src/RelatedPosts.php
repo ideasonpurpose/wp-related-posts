@@ -77,9 +77,9 @@ class RelatedPosts extends \WP_REST_Controller
      * Unknown keys default to 1
      */
     public $weights = [
-        // 'tag' => 4,
-        // 'category' => 3,
-        // 'post_type' => 4,
+        'tag' => 4,
+        'category' => 3,
+        'post_type' => 2,
     ];
 
     /**
@@ -138,7 +138,7 @@ class RelatedPosts extends \WP_REST_Controller
         $this->rest_base_MINE = "{$this->namespace}/{$this->rest_base}";
         add_action('rest_api_init', [$this, 'registerRestRoutes']);
 
-        $this->mergeArgs($args);
+        $this->validateAndMergeArgs($args);
 
         /**
          * Merge any args onto the defaults
@@ -242,14 +242,27 @@ class RelatedPosts extends \WP_REST_Controller
 
     /**
      * Validate and merge arguments onto defaults
+     *
+     * non-integer weights will be ignored
+     *
      */
-    public function mergeArgs($args)
+    public function validateAndMergeArgs($args)
     {
+        if (!is_array($args)) {
+            return;
+        }
+
         /**
          * Ensure weights and types are arrays?
          */
         if (array_key_exists('weights', $args) && is_array($args['weights'])) {
-            $this->weights = array_merge($this->weights, $args['weights']);
+            $integerWeights = [];
+            foreach ($args['weights'] as $slug => $val) {
+                if (is_numeric($val)) {
+                    $integerWeights[$slug] = (int) $val;
+                }
+            }
+            $this->weights = array_merge($this->weights, $integerWeights);
         }
 
         // if (array_key_exists('omit-types', $args) && is_array($args['omit-types'])) {
@@ -260,13 +273,44 @@ class RelatedPosts extends \WP_REST_Controller
             $this->types = array_merge($this->types, $args['types']);
         }
 
-        $this->weights = array_merge($this->weights, $args['weights'] ?? []);
-        $this->types = array_merge($this->types, $args['types'] ?? []);
+        /**
+         * Ensure weights and types are arrays
+         */
 
-        // sort weights so the resulting hash is idempotent (hased for the transient ID)
+        // try {
+        //     //code...
+        //     $this->weights = array_merge($this->weights, $args['weights'] ?? []);
+        // } catch (\Throwable $th) {
+        //     //throw $th;
+        // }
+
+        // try {
+        //     $this->types = array_merge($this->types, $args['types'] ?? []);
+        // } catch (\Throwable $th) {
+
+        // }
+
+        // sort weights so the resulting hash is idempotent (will be hashed with $post->guid for the transient ID)
         ksort($this->weights);
+        $this->weights = $this->clampWeights($this->weights);
 
         // d($this);
+    }
+
+    /**
+     * Returns a copy of the input $weights array with all values clamped between $min and $max
+     * @param array $weights
+     * @param int $min
+     * @param int $max
+     * @return array
+     */
+    public function clampWeights($weights, $min = 0, $max = 7)
+    {
+        $clamped = [];
+        foreach ($weights as $key => $value) {
+            $clamped[$key] = max($min, min($max, (int) $value));
+        }
+        return $clamped;
     }
 
     /**
@@ -274,12 +318,14 @@ class RelatedPosts extends \WP_REST_Controller
      */
 
     /**
-     *   Gather and rank related posts for a given ID
-     * Store the result in a transient
+     *   Gather and rank related posts for a given WP_POST
+     *
+     * If there's no post, return an empty array. (TODO: problem?)
+     * Store the result in a transient derived from weightings and the Post's guid
      * @param WP_Post $post
      * @return array Array of related WP_Post objects
      */
-    public function fetchPosts($post)
+    public function fetchPosts($post): array
     {
         /*
          * store posts in an 8-hour transient to conserve queries and to prevent
@@ -289,6 +335,7 @@ class RelatedPosts extends \WP_REST_Controller
             return [];
         }
         $transientName = md5($post->guid . json_encode($this->weights));
+        // d($transientName);
         $posts = $this->WP_DEBUG ? false : get_transient($transientName);
         if ($posts === false) {
             $posts = $this->collectPosts($post);
@@ -308,12 +355,13 @@ class RelatedPosts extends \WP_REST_Controller
      *
      * @param array $args options container, may include a post (WP_POST) and weights
      */
-    public function collectPosts($post)
+    public function collectPosts($post): array
     {
-        $postBucket = [];
         if (!$post) {
             return [];
         }
+
+        $postBucket = [];
         $post_types = array_filter(
             get_post_types(['public' => true, 'exclude_from_search' => false]),
             fn($k) => !in_array($k, ['page', 'attachment']),
@@ -321,10 +369,10 @@ class RelatedPosts extends \WP_REST_Controller
         );
 
         $taxonomies = get_object_taxonomies($post->post_type, 'objects');
-        d($post_types, $taxonomies, $this->weights);
+        // d($post_types, $taxonomies, $this->weights);
         foreach ($taxonomies as $slug => $tax) {
             $terms = get_the_terms($post->ID, $slug);
-            d($slug, $tax, $terms, $post_types);
+            // d($slug, $tax, $terms, $post_types);
             if ($terms) {
                 foreach ($terms as $term) {
                     $posts = get_posts([
@@ -341,8 +389,8 @@ class RelatedPosts extends \WP_REST_Controller
                             ],
                         ],
                     ]);
-                    d($posts);
-                    $postBucket = $this->_arrayMergeWeighted($postBucket, $posts, $slug);
+                    // d($posts);
+                    $postBucket = $this->arrayMergeWeighted($postBucket, $posts, $slug);
                 }
             }
         }
@@ -356,7 +404,7 @@ class RelatedPosts extends \WP_REST_Controller
         //     'posts_per_page' => 12,
         //     'orderby' => ['date' => 'DESC'],
         // ]);
-        // $postBucket = $this->_arrayMergeWeighted($postBucket, $posts, 'type');
+        // $postBucket = $this->arrayMergeWeighted($postBucket, $posts, 'type');
 
         // Get 12 most recent posts of all types
         // $posts = get_posts([
@@ -366,7 +414,7 @@ class RelatedPosts extends \WP_REST_Controller
         //     'post_status' => 'publish',
         //     'orderby' => ['date' => 'DESC'],
         // ]);
-        // $postBucket = $this->_arrayMergeWeighted($postBucket, $posts, 'date');
+        // $postBucket = $this->arrayMergeWeighted($postBucket, $posts, 'date');
 
         //     d($postBucket, $ids
         // );
@@ -411,10 +459,11 @@ class RelatedPosts extends \WP_REST_Controller
     /**
      * fetches a weight integer from $this->weights
      * unknown keys default to 1
+     * tags is translated to post-tag
      * @param  string $slug the taxonomy or type of query to weight
      * @return integer       an integer weight
      */
-    private function _getWeight($slug)
+    public function getWeight($slug)
     {
         // remap 'post_tag' to 'tag'
         // if ($slug === 'post_tag') {
@@ -422,7 +471,7 @@ class RelatedPosts extends \WP_REST_Controller
         // }
         // remap 'tag' to 'post_tag'
         if ($slug === 'tag') {
-            $slug = 'post_tag';
+            $slug = 'post-tag';
         }
 
         return $this->weights[$slug] ?? 1;
@@ -435,16 +484,16 @@ class RelatedPosts extends \WP_REST_Controller
     }
 
     /**
-     * wrapper for array_merge which uses weights from $this->_getWeight
+     * wrapper for array_merge which uses weights from $this->getWeight
      * @param  array $base      array to merge into
      * @param  array $merge     array to merge
      * @param  string $slug     taxonomy or type of query to weight
      * @return array            the merged array
      */
-    private function _arrayMergeWeighted($base, $merge, $slug)
+    public function arrayMergeWeighted($base, $merge, $slug)
     {
         $output = $base;
-        $weight = $this->_getWeight($slug);
+        $weight = $this->getWeight($slug);
         for ($i = 0; $i < $weight; $i++) {
             $output = array_merge($output, $merge);
         }
@@ -452,12 +501,12 @@ class RelatedPosts extends \WP_REST_Controller
     }
 
     // TODO: Waste of space, inline these
-    private function _filterPostsWithoutImages()
+    public function _filterPostsWithoutImages()
     {
         $this->posts = array_filter($this->posts, 'has_post_thumbnail');
     }
 
-    private function _filterPostTypes()
+    public function _filterPostTypes()
     {
         $this->posts = array_filter($this->posts, function ($p) {
             return !in_array($p->post_type, $this->types);
@@ -475,7 +524,9 @@ class RelatedPosts extends \WP_REST_Controller
     {
         global $post;
 
-        $the_post = get_post($id) ?? ($post ?? []);
+        $the_post = get_post($id) ?? $post;
+
+        // d($post);
 
         // d($count, $offset, $id, $post, $the_post);
 
@@ -531,7 +582,7 @@ class RelatedPosts extends \WP_REST_Controller
 
         // return $relQuery->posts;
 
-        // return array_slice($this->fetchPosts($the_post), $offset, $count);
+        // return array_slice($this->osts($the_post), $offset, $count);
         // }
         // return [];
     }
