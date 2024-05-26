@@ -77,7 +77,7 @@ class RelatedPosts extends \WP_REST_Controller
      * Unknown keys default to 1
      */
     public $weights = [
-        'tag' => 4,
+        'post_tag' => 4,
         'category' => 3,
         'post_type' => 2,
     ];
@@ -92,7 +92,7 @@ class RelatedPosts extends \WP_REST_Controller
      * Maps to the omit_types REST arg
      * Post_types to include in the set of related content
      */
-    public $types = [];
+    // public $types = [];
 
     /**
      * REST API endpoint components, exposed for testing
@@ -269,9 +269,9 @@ class RelatedPosts extends \WP_REST_Controller
         //     $this->omitTypes = array_merge($this->omitTypes, $args['omit-types']);
         // }
 
-        if (array_key_exists('types', $args) && is_array($args['types'])) {
-            $this->types = array_merge($this->types, $args['types']);
-        }
+        // if (array_key_exists('types', $args) && is_array($args['types'])) {
+        //     $this->types = array_merge($this->types, $args['types']);
+        // }
 
         /**
          * Ensure weights and types are arrays
@@ -362,13 +362,21 @@ class RelatedPosts extends \WP_REST_Controller
         }
 
         $postBucket = [];
+        /**
+         * Get all public post_types, then filter out pages and attachments
+         * TODO: why filter Pages here? Remove that from the interface?
+         */
         $post_types = array_filter(
-            get_post_types(['public' => true, 'exclude_from_search' => false]),
-            fn($k) => !in_array($k, ['page', 'attachment']),
-            ARRAY_FILTER_USE_KEY
+            get_post_types(['public' => true, 'exclude_from_search' => false], 'names'),
+            fn($t) => $t !== 'attachment'
+            // fn($k) => !in_array($k, ['page', 'attachment']),
+            // ARRAY_FILTER_USE_KEY
         );
 
         $taxonomies = get_object_taxonomies($post->post_type, 'objects');
+
+        // d($post_types, $taxonomies);
+
         // d($post_types, $taxonomies, $this->weights);
         foreach ($taxonomies as $slug => $tax) {
             $terms = get_the_terms($post->ID, $slug);
@@ -394,6 +402,8 @@ class RelatedPosts extends \WP_REST_Controller
                 }
             }
         }
+
+        // d($postBucket);
         // $types = wp_list_pluck($postBucket, 'post_type');
         // d($types);
         // Get 12 most recent posts of the same type
@@ -418,35 +428,39 @@ class RelatedPosts extends \WP_REST_Controller
 
         //     d($postBucket, $ids
         // );
-
-        $rankedPosts = [];
+        /**
+         * Create a lookup table array with IDs and occurrence counts.
+         */
         $ids = array_map(fn($n) => $n->ID, $postBucket);
         $counts = array_count_values($ids);
 
-        d($ids, $counts);
+        // d($ids, $counts);
+
+        // $posts()
+        $rankedPosts = [];
         foreach ($counts as $key => $count) {
             $thePost = get_post($key);
             $rankedPosts[$key] = [
                 'count' => $count,
-                'date' => $thePost->post_date,
+                'post_date' => $thePost->post_date,
                 'post' => $thePost,
             ];
         }
 
+        // d($rankedPosts, $posts);
         // sort by count DESC, then by date DESC
         uasort($rankedPosts, function ($a, $b) {
             $cmp = $b['count'] - $a['count'];
             if ($cmp === 0) {
-                $cmp = strcmp($b['date'], $a['date']);
+                $cmp = strcmp($b['post_date'], $a['post_date']);
             }
             return $cmp;
         });
 
-        $rankedPosts = array_filter($rankedPosts, function ($p) {
-            return !in_array($p['post']->post_type, $this->types);
-        });
-
-        d($rankedPosts);
+        // $rankedPosts = array_filter($rankedPosts, function ($p) {
+        //     return !in_array($p['post']->post_type, $this->types);
+        // });
+// d($rankedPosts);
         return array_map(function ($n) {
             return $n['post'];
         }, $rankedPosts);
@@ -459,7 +473,7 @@ class RelatedPosts extends \WP_REST_Controller
     /**
      * fetches a weight integer from $this->weights
      * unknown keys default to 1
-     * tags is translated to post-tag
+     * tags is translated to post_tag
      * @param  string $slug the taxonomy or type of query to weight
      * @return integer       an integer weight
      */
@@ -471,7 +485,7 @@ class RelatedPosts extends \WP_REST_Controller
         // }
         // remap 'tag' to 'post_tag'
         if ($slug === 'tag') {
-            $slug = 'post-tag';
+            $slug = 'post_tag';
         }
 
         return $this->weights[$slug] ?? 1;
@@ -506,12 +520,12 @@ class RelatedPosts extends \WP_REST_Controller
         $this->posts = array_filter($this->posts, 'has_post_thumbnail');
     }
 
-    public function _filterPostTypes()
-    {
-        $this->posts = array_filter($this->posts, function ($p) {
-            return !in_array($p->post_type, $this->types);
-        });
-    }
+    // public function _filterPostTypes()
+    // {
+    //     $this->posts = array_filter($this->posts, function ($p) {
+    //         return !in_array($p->post_type, $this->types);
+    //     });
+    // }
 
     /**
      * Get related posts

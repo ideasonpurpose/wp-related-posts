@@ -26,7 +26,7 @@ final class RelatedPostsTest extends TestCase
         $this->assertIsString($actual->namespace);
         $this->assertIsString($actual->rest_base);
         $this->assertCount(3, $actual->weights);
-        $this->assertEmpty($actual->types);
+        // $this->assertEmpty($actual->types);
 
         $this->assertCount(1, all_added_actions());
         $this->assertCount(0, all_added_filters());
@@ -48,16 +48,16 @@ final class RelatedPostsTest extends TestCase
         $this->assertCount(5, $rp->weights);
     }
 
-    public function testValidateAndMergeArgs_types()
-    {
-        $type = 'card';
+    // public function testValidateAndMergeArgs_types()
+    // {
+    //     $type = 'card';
 
-        $rp = new RelatedPosts(['types' => ['post']]);
-        $rp->validateAndMergeArgs(['types' => [$type]]);
+    //     $rp = new RelatedPosts(['types' => ['post']]);
+    //     $rp->validateAndMergeArgs(['types' => [$type]]);
 
-        $this->assertContains($type, $rp->types);
-        $this->assertCount(2, $rp->types);
-    }
+    //     $this->assertContains($type, $rp->types);
+    //     $this->assertCount(2, $rp->types);
+    // }
 
     public function testValidateAndMergeArgs_notArrays()
     {
@@ -68,7 +68,7 @@ final class RelatedPostsTest extends TestCase
 
         $this->assertEquals($a, $rp->weights['a']);
         $this->assertCount(4, $rp->weights);
-        $this->assertCount(0, $rp->types);
+        // $this->assertCount(0, $rp->types);
     }
 
     public function testValidateAndMergeArgs_nonNumericWeights()
@@ -220,25 +220,48 @@ final class RelatedPostsTest extends TestCase
 
     public function testCollectPosts()
     {
+        global $object_taxonomies, $post_types, $the_terms, $get_posts, $posts;
+
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['arrayMergeWeighted'])
             ->getMock();
 
+        $one = (object) ['ID' => 11, 'post_date' => '2024-05-31'];
+        $two = (object) ['ID' => 22, 'post_date' => '2024-05-15'];
+        $three = (object) ['ID' => 33, 'post_date' => '2024-05-01'];
+
         $rp->expects($this->exactly(2))
             ->method('arrayMergeWeighted')
-            ->willReturn([1, 2, 2, 3, 3, 3]);
+            ->willReturn([$one, $two, $two, $three, $three, $three]);
 
-            $post = (object) [
-                'ID' => '25',
-                'post_type' => 'post'
-            ];
+        $post = (object) [
+            'ID' => '25',
+            'post_type' => 'post',
+        ];
 
-
-
+        /**
+         * Set up globals for mocking
+         * TODO: 'article' post_type will be filtered out, any way to test that?
+         */
+        $post_types = ['attachment', 'page', 'article'];
+        $object_taxonomies = ['topic' => 'topic', 'color' => 'color'];
+        $the_terms = [(object) ['slug' => 'purple']];
+        $get_posts = null;
+        $posts = [11 => $one, 22 => $two, 33 => $three];
+        // d($get_posts);
         $actual = $rp->collectPosts($post);
+
         // d($actual);
+        // d($get_posts);
         $this->assertEquals(5, 5);
+
+        /**
+         * Check args passed to the get_posts loop include all taxonomies
+         */
+        // $this->assertContains('color', $get_posts[1]['tax_query'][0]);
+        $this->assertContains('topic', ...$get_posts[0]['tax_query']);
+        $this->assertContains('color', ...$get_posts[1]['tax_query']);
     }
 
     public function testCollectPosts_noPost()
@@ -246,5 +269,17 @@ final class RelatedPostsTest extends TestCase
         $rp = new RelatedPosts();
         $actual = $rp->collectPosts(null);
         $this->assertEmpty($actual);
+    }
+
+    public function testGetWeight()
+    {
+        $expected_cat = 1;
+        $expected_tag = 4;
+        $rp = new RelatedPosts([
+            'weights' => ['cat' => $expected_cat, 'post_tag' => $expected_tag],
+        ]);
+        $this->assertEquals($rp->getWeight('tag'), $expected_tag);
+        $this->assertEquals($rp->getWeight('post_tag'), $expected_tag);
+        $this->assertEquals($rp->getWeight('cat'), $expected_cat);
     }
 }
