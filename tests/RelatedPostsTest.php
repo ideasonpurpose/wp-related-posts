@@ -13,7 +13,9 @@ final class RelatedPostsTest extends TestCase
 {
     public function setUp(): void
     {
-        global $actions, $filters, $transients;
+        global $post, $posts, $actions, $filters, $transients;
+        unset($post);
+        $posts = [];
         $actions = [];
         $filters = [];
         $transients = [];
@@ -35,75 +37,300 @@ final class RelatedPostsTest extends TestCase
         $this->assertInstanceOf('\Random\Randomizer', $actual->randomizer);
     }
 
-    public function testValidateAndMergeArgs()
+    public function testInitPost_globalPost()
     {
-        $a = 5;
-        $b = 10;
-        $rp = new RelatedPosts(['weights' => ['a' => 3]]);
-        $rp->validateAndMergeArgs(['weights' => ['a' => $a, 'b' => ($b = $b)]]);
+        global $post;
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
 
-        // d($rp->weights);
-        $this->assertEquals($a, $rp->weights['a']);
-        $this->assertLessThan($b, $rp->weights['b']);
-        $this->assertCount(5, $rp->weights);
+        $expected = 44;
+        $post = (object) [
+            'ID' => $expected,
+            'post_type' => 'post',
+        ];
+
+        $rp->initPost();
+
+        $this->assertEquals($expected, $rp->post->ID);
     }
+
+    public function testInitPost_argsInteger()
+    {
+        global $post, $posts;
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $post = (object) [
+            'ID' => 55,
+            'post_type' => 'post',
+        ];
+
+        $expected = 124;
+        $posts[$expected] = (object) [
+            'ID' => $expected,
+            'post_type' => 'book',
+        ];
+
+        $rp->initPost(['post' => $expected]);
+
+        $this->assertNotEquals($post->ID, $rp->post->ID);
+        $this->assertEquals($expected, $rp->post->ID);
+    }
+
+    public function testInitTypes()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $expected = 'book';
+        $rp->post = (object) [
+            'ID' => 88,
+            'post_type' => $expected,
+        ];
+        $rp->initTypes();
+
+        $this->assertIsArray($rp->types);
+        $this->assertContains($expected, $rp->types);
+    }
+
+    public function testInitTypes_noPost()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $rp->initTypes();
+
+        $this->assertIsArray($rp->types);
+        $this->assertEmpty($rp->types);
+
+        $expected = ['dog'];
+        $rp->types = $expected;
+
+        $rp->initTypes();
+
+        $this->assertSame($expected, $rp->types);
+    }
+
+    public function testInitTypes_typesArray()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $expected = ['animals'];
+
+        $rp->initTypes(['post_types' => $expected]);
+
+        $this->assertIsArray($rp->types);
+        $this->assertSame($expected, $rp->types);
+
+        $rp->types = $expected;
+    }
+
+    public function testInitTypes_typesString()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $expected = 'film';
+
+        $rp->initTypes(['post_types' => $expected]);
+
+        $this->assertIsArray($rp->types);
+        $this->assertContains($expected, $rp->types);
+
+        $rp->types = [$expected];
+    }
+
+    public function testNormalizeArgs()
+    {
+        global $post, $post_type;
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $post = (object) [
+            'ID' => 55,
+            'post_type' => 'post',
+        ];
+
+        $src = ['weights' => ['dog' => '125']];
+        $expected = ['post' => $post, 'weights' => ['dog' => 125]];
+        $actual = $rp->normalizeArgs($src);
+
+        $this->assertSame($expected, $actual);
+
+        // post_types should not contain duplicates or 'attachment'
+        $src = ['post_types' => ['dog', 'dog', 'attachment']];
+        $expected = ['post' => $post, 'post_types' => ['dog']];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertNotContains('attachment', $actual['post_types']);
+        $this->assertSame($expected, $actual);
+
+        // post_types can not be empty
+        $post_type = $post->post_type;
+        $src = ['post_types' => []];
+        $expected = ['post' => $post, 'post_types' => [$post->post_type]];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertNotContains('attachment', $actual['post_types']);
+        $this->assertSame($expected, $actual);
+
+        $src = ['offset' => '4'];
+        $expected = ['post' => $post, 'offset' => 4];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['offset' => 'not a number'];
+        $expected = ['post' => $post];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['has_post_thumbnail' => true];
+        $expected = ['post' => $post, 'has_post_thumbnail' => true];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['has_post_thumbnail' => false];
+        $expected = ['post' => $post, 'has_post_thumbnail' => false];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['has_post_thumbnail' => 'yes'];
+        $expected = ['post' => $post, 'has_post_thumbnail' => true];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['has_post_thumbnail' => 'no'];
+        $expected = ['post' => $post, 'has_post_thumbnail' => true];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['posts_per_page' => 'not a number'];
+        $expected = ['post' => $post];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['posts_per_page' => '4'];
+        $expected = ['post' => $post, 'posts_per_page' => 4];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        // too big
+        $src = ['posts_per_page' => 125];
+        $expected = ['post' => $post, 'posts_per_page' => 20];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        // too small
+        $src = ['posts_per_page' => -1];
+        $expected = ['post' => $post, 'posts_per_page' => 1];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+    }
+
+    // public function testValidateAndMergeArgs()
+    // {
+    //     $a = 5;
+    //     $b = 10;
+    //     $rp = new RelatedPosts(['weights' => ['a' => 3]]);
+    //     $rp->validateAndMergeArgs(['weights' => ['a' => $a, 'b' => ($b = $b)]]);
+
+    //     // d($rp->weights);
+    //     $this->assertEquals($a, $rp->weights['a']);
+    //     $this->assertLessThan($b, $rp->weights['b']);
+    //     $this->assertCount(5, $rp->weights);
+    // }
 
     // public function testValidateAndMergeArgs_types()
     // {
     //     $type = 'card';
 
     //     $rp = new RelatedPosts(['types' => ['post']]);
-    //     $rp->validateAndMergeArgs(['types' => [$type]]);
+    //     $this->assertCount(1, $rp->types);
 
+    //     $rp->validateAndMergeArgs(['types' => [$type]]);
+    //     $this->assertContains('post', $rp->types);
     //     $this->assertContains($type, $rp->types);
+    //     $this->assertCount(2, $rp->types);
+
+    //     /**
+    //      * Check there are no duplicates
+    //      */
+    //     $rp->validateAndMergeArgs(['types' => [$type, 'post']]);
     //     $this->assertCount(2, $rp->types);
     // }
 
-    public function testValidateAndMergeArgs_notArrays()
-    {
-        $a = 5;
-        $b = 10;
-        $rp = new RelatedPosts(['weights' => ['a' => $a]]);
-        $rp->validateAndMergeArgs(['weights' => 5, 'types' => 'frogs']);
+    // public function testValidateAndMergeArgs_postAndTypes()
+    // {
+    //     $type = 'card';
 
-        $this->assertEquals($a, $rp->weights['a']);
-        $this->assertCount(4, $rp->weights);
-        // $this->assertCount(0, $rp->types);
-    }
+    //     $rp = new RelatedPosts(['types' => ['post']]);
 
-    public function testValidateAndMergeArgs_nonNumericWeights()
-    {
-        $a = 1;
-        $b = 2;
-        $c = 3;
-        $rp = new RelatedPosts(['weights' => ['a' => $a, 'b' => $b, 'c' => 0]]);
-        $rp->validateAndMergeArgs(['weights' => ['a' => 'dog', 'b' => 'cat', 'c' => $c]]);
+    //     $rp->validateAndMergeArgs(['types' => [$type]]);
 
-        $this->assertEquals($a, $rp->weights['a']);
-        $this->assertEquals($b, $rp->weights['b']);
-        $this->assertEquals($c, $rp->weights['c']);
-        $this->assertIsNotString($rp->weights['a']);
-        $this->assertIsNotString($rp->weights['b']);
-    }
+    //     $this->assertContains($type, $rp->types);
 
-    public function testValidateAndMergeArgs_argsNotArray()
-    {
-        // $expected = ['weights' => ['a' => 1], 'types' => ['dog']];
-        $rp = new RelatedPosts();
-        $expected = $rp->weights;
+    //     // d($rp->types);
+    //     $this->assertCount(2, $rp->types);
+    // }
 
-        // null
-        $rp->validateAndMergeArgs(null);
-        $this->assertSame($rp->weights, $expected);
+    // // public function testValidateAndMergeArgs_notArrays()
+    // // {
+    // //     $a = 5;
+    // //     $b = 10;
+    // //     $rp = new RelatedPosts(['weights' => ['a' => $a]]);
+    // //     // $rp->validateAndMergeArgs(['weights' => 5, 'types' => 'frogs']);
 
-        // string
-        $rp->validateAndMergeArgs('string');
-        $this->assertSame($rp->weights, $expected);
+    // //     $this->assertEquals($a, $rp->weights['a']);
+    // //     $this->assertCount(4, $rp->weights);
+    // //     // $this->assertCount(0, $rp->types);
+    // // }
 
-        // number
-        $rp->validateAndMergeArgs(1337);
-        $this->assertSame($rp->weights, $expected);
-    }
+    // public function testValidateAndMergeArgs_nonNumericWeights()
+    // {
+    //     $a = 1;
+    //     $b = 2;
+    //     $c = 3;
+    //     $rp = new RelatedPosts(['weights' => ['a' => $a, 'b' => $b, 'c' => 0]]);
+    //     $rp->validateAndMergeArgs(['weights' => ['a' => 'dog', 'b' => 'cat', 'c' => $c]]);
+
+    //     $this->assertEquals($a, $rp->weights['a']);
+    //     $this->assertEquals($b, $rp->weights['b']);
+    //     $this->assertEquals($c, $rp->weights['c']);
+    //     $this->assertIsNotString($rp->weights['a']);
+    //     $this->assertIsNotString($rp->weights['b']);
+    // }
+
+    // public function testValidateAndMergeArgs_argsNotArray()
+    // {
+    //     // $expected = ['weights' => ['a' => 1], 'types' => ['dog']];
+    //     $rp = new RelatedPosts();
+    //     $expected = $rp->weights;
+
+    //     // null
+    //     $rp->validateAndMergeArgs(null);
+    //     $this->assertSame($rp->weights, $expected);
+
+    //     // string
+    //     $rp->validateAndMergeArgs('string');
+    //     $this->assertSame($rp->weights, $expected);
+
+    //     // number
+    //     $rp->validateAndMergeArgs(1337);
+    //     $this->assertSame($rp->weights, $expected);
+    // }
 
     public function testClampWeights()
     {
@@ -126,6 +353,20 @@ final class RelatedPostsTest extends TestCase
         $this->assertNotSame($src['a'], $actual['a']);
     }
 
+    public function testGetTransientName()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $src = ['weights' => 1, 'post_types' => 2, 'post' => (object) ['ID' => 3]];
+
+        $actual = $rp->getTransientName($src);
+        $this->assertEquals(strlen('related_posts_') + 32, strlen($actual));
+        $this->assertStringStartsWith('related_posts_', $actual);
+    }
+
     public function testFetchPosts_noTransient()
     {
         global $transients, $get_transient, $set_transient;
@@ -134,22 +375,19 @@ final class RelatedPostsTest extends TestCase
 
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['collectPosts'])
+            ->onlyMethods(['collectPosts', 'getTransientName'])
             ->getMock();
 
+        $transientName = 'transient_name';
         $rp->method('collectPosts')->willReturn($expected);
+        $rp->method('getTransientName')->willReturn($transientName);
 
-        $post = (object) [
-            'guid' => 'post_guid',
-        ];
-
-        $transientName = md5($post->guid . json_encode($rp->weights));
         $get_transient[$transientName] = false;
 
         $rp->WP_DEBUG = false;
-        $actual = $rp->fetchPosts($post);
+        $actual = $rp->fetchPosts(['post' => 'required']);
 
-        // d($transients);
+        // d($transients, $get_transient);
 
         $this->assertContains('get', $transients[0]);
         $this->assertContains('set', $transients[1]);
@@ -158,26 +396,41 @@ final class RelatedPostsTest extends TestCase
         // d($transients, $get_transient, $set_transient);
     }
 
+    public function testFetchPosts_noPost()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $actual = $rp->fetchPosts([]);
+        $this->assertEmpty($actual);
+    }
+
     public function testFetchPosts_debug()
     {
-        global $transients, $get_transient;
+        global $transients;
 
         $expected = ['posts from transient'];
 
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['collectPosts'])
+            ->onlyMethods(['collectPosts', 'getTransientName'])
             ->getMock();
 
+        $transientName = 'transient_name';
         $rp->method('collectPosts')->willReturn($expected);
+        $rp->method('getTransientName')->willReturn($transientName);
+
         $rp->WP_DEBUG = false;
 
         $post = (object) [
-            'guid' => 'post_guid',
+            'ID' => 123,
         ];
 
         $rp->WP_DEBUG = true;
-        $actual = $rp->fetchPosts($post);
+        // $actual = $rp->fetchPosts();
+        $actual = $rp->fetchPosts(['post' => $post]);
 
         $this->assertNotContains('get', $transients[0]);
         $this->assertContains('set', $transients[0]);
@@ -185,19 +438,19 @@ final class RelatedPostsTest extends TestCase
         $this->assertSame($actual, $expected);
     }
 
-    public function testFetchPosts_noPost()
-    {
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['collectPosts'])
-            ->getMock();
+    // public function testFetchPosts_noPost()
+    // {
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods(['collectPosts'])
+    //         ->getMock();
 
-        $rp->method('collectPosts')->willReturn(['array of posts']);
+    //     $rp->method('collectPosts')->willReturn(['array of posts']);
 
-        $actual = $rp->fetchPosts(null);
+    //     $actual = $rp->fetchPosts();
 
-        $this->assertSame($actual, []);
-    }
+    //     $this->assertSame($actual, []);
+    // }
 
     public function testArrayMergeWeighted()
     {
@@ -220,7 +473,7 @@ final class RelatedPostsTest extends TestCase
 
     public function testCollectPosts()
     {
-        global $object_taxonomies, $post_types, $the_terms, $get_posts, $posts;
+        global $get_posts, $object_taxonomies, $posts, $the_terms, $wp_list_pluck;
 
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
@@ -231,9 +484,9 @@ final class RelatedPostsTest extends TestCase
         $two = (object) ['ID' => 22, 'post_date' => '2024-05-15'];
         $three = (object) ['ID' => 33, 'post_date' => '2024-05-01'];
 
-        $rp->expects($this->exactly(2))
+        $rp->expects($this->exactly(4))
             ->method('arrayMergeWeighted')
-            ->willReturn([$one, $two, $two, $three, $three, $three]);
+            ->willReturn([11, 22, 22, 33, 33]);
 
         $post = (object) [
             'ID' => '25',
@@ -242,34 +495,51 @@ final class RelatedPostsTest extends TestCase
 
         /**
          * Set up globals for mocking
-         * TODO: 'article' post_type will be filtered out, any way to test that?
          */
-        $post_types = ['attachment', 'page', 'article'];
+        $post_types = ['page', 'article'];
         $object_taxonomies = ['topic' => 'topic', 'color' => 'color'];
         $the_terms = [(object) ['slug' => 'purple']];
         $get_posts = null;
         $posts = [11 => $one, 22 => $two, 33 => $three];
-        // d($get_posts);
-        $actual = $rp->collectPosts($post);
+        $wp_list_pluck = [1, 2, 3];
 
-        // d($actual);
-        // d($get_posts);
-        $this->assertEquals(5, 5);
+        $actual = $rp->collectPosts([
+            'post' => $post,
+            'post_types' => $post_types,
+            'has_post_thumbnail' => false,
+        ]);
+
+        $get_post_types = [];
+        foreach ($get_posts as $query) {
+            if (is_array($query['post_type'])) {
+                $get_post_types = array_merge($get_post_types, $query['post_type']);
+            } else {
+                $get_post_types[] = $query['post_type'];
+            }
+        }
 
         /**
          * Check args passed to the get_posts loop include all taxonomies
          */
-        // $this->assertContains('color', $get_posts[1]['tax_query'][0]);
-        $this->assertContains('topic', ...$get_posts[0]['tax_query']);
-        $this->assertContains('color', ...$get_posts[1]['tax_query']);
+
+        /// The attachment post_type should have been filtered out
+        $this->assertNotContains('attachment', $get_post_types);
+
+        // check terms were passed to the taxonomy query
+        $this->assertContains('topic', $get_posts[0]['tax_query'][0]);
+        $this->assertContains('color', $get_posts[1]['tax_query'][0]);
+        // $this->assertContains('topic', ...$get_posts[0]['tax_query']);
+        // $this->assertContains('color', ...$get_posts[1]['tax_query']);
+
+        $this->assertSame([22, 33, 11], array_keys($actual));
     }
 
-    public function testCollectPosts_noPost()
-    {
-        $rp = new RelatedPosts();
-        $actual = $rp->collectPosts(null);
-        $this->assertEmpty($actual);
-    }
+    // public function testCollectPosts_noPost()
+    // {
+    //     $rp = new RelatedPosts();
+    //     $actual = $rp->collectPosts(null);
+    //     $this->assertEmpty($actual);
+    // }
 
     public function testGetWeight()
     {
@@ -281,5 +551,48 @@ final class RelatedPostsTest extends TestCase
         $this->assertEquals($rp->getWeight('tag'), $expected_tag);
         $this->assertEquals($rp->getWeight('post_tag'), $expected_tag);
         $this->assertEquals($rp->getWeight('cat'), $expected_cat);
+    }
+
+    public function testGet()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['normalizeArgs', 'fetchPosts'])
+            ->getMock();
+
+        $mockArgs = ['args' => 'mock'];
+        $rp->expects($this->exactly(2))->method('normalizeArgs')->willReturn($mockArgs);
+
+        $rp->expects($this->exactly(2))
+            ->method('fetchPosts')
+            ->with($this->equalTo($mockArgs))
+            ->willReturn([1, 2, 3, 4, 5, 6]);
+
+        $expected = 2;
+        $actual = $rp->get($expected);
+        $this->assertCount($expected, $actual);
+
+        $expected = 4;
+        $actual = $rp->get($expected);
+        $this->assertCount($expected, $actual);
+    }
+
+    /**
+     * REST function tests
+     */
+
+    public function testRegisterRestRoutes()
+    {
+        global $register_rest_route;
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['normalizeArgs', 'fetchPosts'])
+            ->getMock();
+
+        $rp->registerRestRoutes();
+        // d($register_rest_route[0]);
+        $this->assertArrayHasKey('methods', $register_rest_route[0][2]);
+        $this->assertArrayHasKey('callback', $register_rest_route[0][2]);
+        $this->assertArrayHasKey('permission_callback', $register_rest_route[0][2]);
     }
 }

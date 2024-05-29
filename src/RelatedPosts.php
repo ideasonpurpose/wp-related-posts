@@ -83,6 +83,14 @@ class RelatedPosts extends \WP_REST_Controller
     ];
 
     /**
+     * Default args, these are the mimimum required to generate a set of
+     * related posts, all arguments will me shallow-merged on top of these.
+     * Arrays like weights and post_types will be replaced by merged args.
+     */
+
+    public $defaults = [];
+
+    /**
      * Default number of related posts to return
      */
     public $count = 3;
@@ -91,8 +99,10 @@ class RelatedPosts extends \WP_REST_Controller
      * Omit post_types from fetched list of related posts.
      * Maps to the omit_types REST arg
      * Post_types to include in the set of related content
+     *
+     * Post_types to include in the set of relatedPosts
      */
-    // public $types = [];
+    public $types = [];
 
     /**
      * REST API endpoint components, exposed for testing
@@ -103,7 +113,10 @@ class RelatedPosts extends \WP_REST_Controller
 
     // protected $debug;
 
-    // public $post;
+    /**
+     * Used to abstract the global post vs. Posts passed in via $args.
+     */
+    public $post = null;
 
     //
     // public $posts;
@@ -138,40 +151,63 @@ class RelatedPosts extends \WP_REST_Controller
         $this->rest_base_MINE = "{$this->namespace}/{$this->rest_base}";
         add_action('rest_api_init', [$this, 'registerRestRoutes']);
 
-        $this->validateAndMergeArgs($args);
+        $this->setDefaults();
+        $this->normalizeArgs($args);
+    }
 
-        /**
-         * Merge any args onto the defaults
-         */
+    /**
+     * Set default args. These are the minimum required to query for related posts
+     * and all user input args will be merged on top of the baseline in $this->defaults
+     * @return void
+     */
+    public function setDefaults()
+    {
+        global $post;
+        $post_types = get_post_type() ? [get_post_type()] : [];
+        $this->defaults = [
+            'post' => $post,
+            'post_types' => $post_types,
+            'weights' => [
+                'post_tag' => 4,
+                'category' => 3,
+                'post_type' => 2,
+            ],
+            'posts_per_page' => 3,
+            'offset' => 0,
+            'has_post_thumbnail' => false,
+        ];
+    }
 
-        // return;
-        // global $post;
+    /*
+     * Set default types from the global $post or $args['post'] if set
+     *   $this->post will be a WP_Post object or null.
+     *
+     * @param array $args
+     * @return void
+     */
+    public function initPost($args = [])
+    {
+        global $post;
+        $this->post = array_key_exists('post', $args) ? $args['post'] : $post;
+        $this->post = get_post($this->post); // returns a WP_Post or null
+    }
 
-        // $this->post = array_key_exists('post', $args) ? $args['post'] : $post;
-        // $this->post = is_integer($this->post) ? get_post($this->post) : $this->post;
+    /**
+     * $this->post should always be either a WP_Post object, or null
+     *
+     * If $args contains an array (or a string wrapped) return that unmodified
+     */
+    public function initTypes($args = []): void
+    {
+        if (array_key_exists('post_types', $args)) {
+            $this->types = is_array($args['post_types'])
+                ? $args['post_types']
+                : [$args['post_types']];
+        }
 
-        // if (array_key_exists('weights', $args) && is_array($args['weights'])) {
-        //     $this->weights = array_merge($this->weights, $args['weights']);
-        // }
-
-        // if (array_key_exists('omit-types', $args) && is_array($args['omit-types'])) {
-        //     $this->omitTypes = array_merge($this->omitTypes, $args['omit-types']);
-        // }
-
-        // /*
-        //  * store posts in an 8-hour transient to conserve queries and to prevent
-        //  * spiders from thinking the page is changing too often.
-        //  *
-        //  * // TODO pre-sort weights so the resulting hash is idempotent
-        //  */
-        // $guid = md5($this->post->guid . json_encode($this->weights));
-        // $this->posts = WP_DEBUG ? false : get_transient($guid);
-        // if ($this->posts === false) {
-        //     // $startTime = microtime(true);
-        //     $this->_init();
-        //     // $this->debugExecutionTime = microtime(true) - $startTime;
-        //     set_transient($guid, $this->posts, 8 * HOUR_IN_SECONDS);
-        // }
+        if (!array_key_exists('post_types', $args) && $this->post) {
+            $this->types = [$this->post->post_type];
+        }
     }
 
     /**
@@ -209,6 +245,48 @@ class RelatedPosts extends \WP_REST_Controller
         global $post;
 
         $posts = $this->get($count, 0, $id);
+
+        $ids = wp_list_pluck($posts, 'ID');
+
+        $post_types = array_unique(wp_list_pluck($posts, 'post_type'));
+
+        $controllers = [];
+        // why not use $this->types?
+        foreach ($post_types as $post_type) {
+            $controllers[$post_type] = new \WP_REST_Posts_Controller($post_type);
+        }
+
+        if (empty($posts)) {
+            /**
+             * TODO: Does this ever happen?
+             * $posts will always be an array
+             * TODO: Needs to return an error
+             */
+            return rest_ensure_response($posts);
+        }
+
+        $data = [];
+
+        // TODO: This translation to REST should happen separately, (if at all?)
+        //       For regular usage, we can save some ticks and just work with native
+        //       WP_Post objects
+        foreach ($posts as $post) {
+            $response = $controllers[$post->post_type]->prepare_item_for_response(
+                $post,
+                new \WP_REST_Request()
+                // $controllers[$post->post_type]->get_collection_params()
+            );
+            // $post_controller = new \WP_REST_Posts_Controller($post->post_type);
+
+            // $response = $this->prepare_item_for_response( $post, $request );
+            // $response = rest_ensure_response($post);
+
+            // $response = (new \WP_REST_Response($post))->get_data();
+            // $response = $post_controller->prepare_item_for_response($post, []);
+            // $data[] = $post_controller->prepare_response_for_collection(rest_ensure_response($data));
+            $data[] = $this->prepare_response_for_collection($response);
+        }
+
         $res = [
             'id' => $id,
             'posts' => $posts,
@@ -240,62 +318,133 @@ class RelatedPosts extends \WP_REST_Controller
         return rest_ensure_response($post_data);
     }
 
+    /// :TODO: Need to merge input Args on top of the minimul default args
+    //         Weights and post_types should be replaced, not deep-merged
+
+    /**
+     * Transforms an $args array to ensure valid properties.
+     * @return array
+     */
+    public function normalizeArgs($rawArgs)
+    {
+        global $post;
+
+        $args = is_array($rawArgs) ? $rawArgs : $this->defaults;
+        $cleanArgs = [];
+        /**
+         * Ensure a $post is set and is a valid WP_POST object
+         */
+        $cleanArgs['post'] = array_key_exists('post', $args) ? $args['post'] : $post;
+        $cleanArgs['post'] = get_post($cleanArgs['post']); // returns a WP_Post or null
+
+        /**
+         * Ensure weights is an array of integers
+         */
+        if (array_key_exists('weights', $args) && is_array($args['weights'])) {
+            foreach ($args['weights'] as $slug => $val) {
+                if (is_numeric($val)) {
+                    $cleanArgs['weights'][$slug] = (int) $val;
+                }
+            }
+        }
+
+        /**
+         * Ensure post_types is a unique array of strings
+         *
+         * TODO: This can not be empty, should not include 'attachment'
+         */
+        if (array_key_exists('post_types', $args) && is_array($args['post_types'])) {
+            $cleanArgs['post_types'] = [];
+            foreach ($args['post_types'] as $post_type) {
+                if (is_string($post_type) && $post_type !== 'attachment') {
+                    $cleanArgs['post_types'][] = $post_type;
+                }
+            }
+            $cleanArgs['post_types'] = array_unique($cleanArgs['post_types']);
+            if (empty($cleanArgs['post_types'])) {
+                $cleanArgs['post_types'] = [get_post_type($post)];
+            }
+        }
+
+        if (array_key_exists('has_post_thumbnail', $args)) {
+            $cleanArgs['has_post_thumbnail'] = (bool) $args['has_post_thumbnail'];
+        }
+
+        if (array_key_exists('offset', $args)) {
+            if (is_numeric($args['offset'])) {
+                $cleanArgs['offset'] = (int) $args['offset'];
+            }
+        }
+
+        if (array_key_exists('posts_per_page', $args)) {
+            if (is_numeric($args['posts_per_page'])) {
+                $min = 1;
+                $max = 20;
+                $val = (int) $args['posts_per_page'];
+                $cleanArgs['posts_per_page'] = max($min, min($val, $max));
+            }
+        }
+
+        $cleanArgs = array_merge($this->defaults, $cleanArgs);
+        return $cleanArgs;
+    }
+
     /**
      * Validate and merge arguments onto defaults
      *
      * non-integer weights will be ignored
      *
      */
-    public function validateAndMergeArgs($args)
-    {
-        if (!is_array($args)) {
-            return;
-        }
+    // public function validateAndMergeArgs($args)
+    // {
+    //     if (!is_array($args)) {
+    //         return;
+    //     }
 
-        /**
-         * Ensure weights and types are arrays?
-         */
-        if (array_key_exists('weights', $args) && is_array($args['weights'])) {
-            $integerWeights = [];
-            foreach ($args['weights'] as $slug => $val) {
-                if (is_numeric($val)) {
-                    $integerWeights[$slug] = (int) $val;
-                }
-            }
-            $this->weights = array_merge($this->weights, $integerWeights);
-        }
+    //     /**
+    //      * Ensure weights and types are arrays?
+    //      */
+    //     if (array_key_exists('weights', $args) && is_array($args['weights'])) {
+    //         $integerWeights = [];
+    //         foreach ($args['weights'] as $slug => $val) {
+    //             if (is_numeric($val)) {
+    //                 $integerWeights[$slug] = (int) $val;
+    //             }
+    //         }
+    //         $this->weights = array_merge($this->weights, $integerWeights);
+    //     }
 
-        // if (array_key_exists('omit-types', $args) && is_array($args['omit-types'])) {
-        //     $this->omitTypes = array_merge($this->omitTypes, $args['omit-types']);
-        // }
+    //     // if (array_key_exists('omit-types', $args) && is_array($args['omit-types'])) {
+    //     //     $this->omitTypes = array_merge($this->omitTypes, $args['omit-types']);
+    //     // }
 
-        // if (array_key_exists('types', $args) && is_array($args['types'])) {
-        //     $this->types = array_merge($this->types, $args['types']);
-        // }
+    //     if (array_key_exists('types', $args) && is_array($args['types'])) {
+    //         $this->types = array_unique(array_merge($this->types, $args['types']));
+    //     }
 
-        /**
-         * Ensure weights and types are arrays
-         */
+    //     /**
+    //      * Ensure weights and types are arrays
+    //      */
 
-        // try {
-        //     //code...
-        //     $this->weights = array_merge($this->weights, $args['weights'] ?? []);
-        // } catch (\Throwable $th) {
-        //     //throw $th;
-        // }
+    //     // try {
+    //     //     //code...
+    //     //     $this->weights = array_merge($this->weights, $args['weights'] ?? []);
+    //     // } catch (\Throwable $th) {
+    //     //     //throw $th;
+    //     // }
 
-        // try {
-        //     $this->types = array_merge($this->types, $args['types'] ?? []);
-        // } catch (\Throwable $th) {
+    //     // try {
+    //     //     $this->types = array_merge($this->types, $args['types'] ?? []);
+    //     // } catch (\Throwable $th) {
 
-        // }
+    //     // }
 
-        // sort weights so the resulting hash is idempotent (will be hashed with $post->guid for the transient ID)
-        ksort($this->weights);
-        $this->weights = $this->clampWeights($this->weights);
+    //     // sort weights so the resulting hash is idempotent (will be hashed with $post->guid for the transient ID)
+    //     ksort($this->weights);
+    //     $this->weights = $this->clampWeights($this->weights);
 
-        // d($this);
-    }
+    //     // d($this);
+    // }
 
     /**
      * Returns a copy of the input $weights array with all values clamped between $min and $max
@@ -308,37 +457,43 @@ class RelatedPosts extends \WP_REST_Controller
     {
         $clamped = [];
         foreach ($weights as $key => $value) {
-            $clamped[$key] = max($min, min($max, (int) $value));
+            $clamped[$key] = max($min, min((int) $value, $max));
         }
         return $clamped;
     }
 
-    /**
-     * @return array Returns an array
-     */
+    public function getTransientName($cleanArgs)
+    {
+        $basis = [
+            'id' => $cleanArgs['post']->ID,
+            'weights' => $cleanArgs['weights'],
+            'post_types' => $cleanArgs['post_types'],
+        ];
+
+        return 'related_posts_' . md5(json_encode($basis));
+    }
 
     /**
-     *   Gather and rank related posts for a given WP_POST
+     * Gather and rank related posts for a given WP_POST based on the post
+     * used to initialize RelatedPosts
      *
-     * If there's no post, return an empty array. (TODO: problem?)
-     * Store the result in a transient derived from weightings and the Post's guid
-     * @param WP_Post $post
+     * Store the result in a transient derived from the Post ID and weightings
      * @return array Array of related WP_Post objects
      */
-    public function fetchPosts($post): array
+    public function fetchPosts($cleanArgs): array
     {
         /*
          * store posts in an 8-hour transient to conserve queries and to prevent
          * spiders from thinking the page is changing too often.
          */
-        if (!$post) {
+        if (!array_key_exists('post', $cleanArgs)) {
             return [];
         }
-        $transientName = md5($post->guid . json_encode($this->weights));
-        // d($transientName);
+        $transientName = $this->getTransientName($cleanArgs);
         $posts = $this->WP_DEBUG ? false : get_transient($transientName);
         if ($posts === false) {
-            $posts = $this->collectPosts($post);
+            $posts = $this->collectPosts($cleanArgs);
+            // TODO: Make transient duration configurable?
             set_transient($transientName, $posts, 8 * HOUR_IN_SECONDS);
         }
         return $posts;
@@ -353,34 +508,41 @@ class RelatedPosts extends \WP_REST_Controller
      *     last 12 of same type
      *     last 12 of all types
      *
+     * TODO: Make that '12' number configurable
+     *
      * @param array $args options container, may include a post (WP_POST) and weights
      */
-    public function collectPosts($post): array
+    public function collectPosts(array $cleanArgs): array
     {
-        if (!$post) {
+        // This might be an issue in the editor, maybe return recent posts instead?
+        if (!$cleanArgs['post']) {
             return [];
         }
 
+        /**
+         * This will hold an array of post IDs which will be added multiple times
+         * after being merged in with arrayMergeWeighted().
+         */
         $postBucket = [];
+
         /**
          * Get all public post_types, then filter out pages and attachments
-         * TODO: why filter Pages here? Remove that from the interface?
          */
-        $post_types = array_filter(
-            get_post_types(['public' => true, 'exclude_from_search' => false], 'names'),
-            fn($t) => $t !== 'attachment'
-            // fn($k) => !in_array($k, ['page', 'attachment']),
-            // ARRAY_FILTER_USE_KEY
-        );
+        // $post_types = array_filter($cleanArgs['post_types'], fn($t) => $t !== 'attachment');
+        $post_types = $cleanArgs['post_types'];
 
+        $thumb_query = ['key' => '_thumbnail_id', 'compare' => 'EXISTS'];
+        $meta_query = $cleanArgs['has_post_thumbnail'] ? [$thumb_query] : [];
+
+        $post = $cleanArgs['post'];
         $taxonomies = get_object_taxonomies($post->post_type, 'objects');
 
-        // d($post_types, $taxonomies);
-
-        // d($post_types, $taxonomies, $this->weights);
+        /**
+         * Collect posts with the same terms across all of this object's taxonomies
+         * TODO: Filter taxonomies that are not weighted?
+         */
         foreach ($taxonomies as $slug => $tax) {
             $terms = get_the_terms($post->ID, $slug);
-            // d($slug, $tax, $terms, $post_types);
             if ($terms) {
                 foreach ($terms as $term) {
                     $posts = get_posts([
@@ -396,47 +558,46 @@ class RelatedPosts extends \WP_REST_Controller
                                 'terms' => [$term->slug],
                             ],
                         ],
+                        'meta_query' => $meta_query,
                     ]);
-                    // d($posts);
-                    $postBucket = $this->arrayMergeWeighted($postBucket, $posts, $slug);
+                    $ids = wp_list_pluck($posts, 'ID');
+                    $postBucket = $this->arrayMergeWeighted($postBucket, $ids, $slug);
                 }
             }
         }
 
-        // d($postBucket);
-        // $types = wp_list_pluck($postBucket, 'post_type');
-        // d($types);
-        // Get 12 most recent posts of the same type
-        // UNNECESSARY WHEN WE'RE ALREADY QUERYING POST_TYPES
-        // $posts = get_posts([
-        //     'post_type' => $post->post_type,
-        //     'post__not_in' => [$post->ID],
-        //     'posts_per_page' => 12,
-        //     'orderby' => ['date' => 'DESC'],
-        // ]);
-        // $postBucket = $this->arrayMergeWeighted($postBucket, $posts, 'type');
+        /**
+         * Collect the most recent posts of the same post_type
+         */
+        $posts = get_posts([
+            'post_type' => $post->post_type,
+            'post__not_in' => [$post->ID],
+            'posts_per_page' => 12,
+            'orderby' => ['date' => 'DESC'],
+            'meta_query' => $meta_query,
+        ]);
+        $ids = wp_list_pluck($posts, 'ID');
+        $postBucket = $this->arrayMergeWeighted($postBucket, $ids, 'post_type');
 
-        // Get 12 most recent posts of all types
-        // $posts = get_posts([
-        //     'post_type' => 'any',
-        //     'post__not_in' => [$post->ID],
-        //     'posts_per_page' => 12,
-        //     'post_status' => 'publish',
-        //     'orderby' => ['date' => 'DESC'],
-        // ]);
-        // $postBucket = $this->arrayMergeWeighted($postBucket, $posts, 'date');
+        /**
+         * Get 12 most recent posts in $post_types
+         */
+        $posts = get_posts([
+            'post_type' => $post_types,
+            'post__not_in' => [$post->ID],
+            'posts_per_page' => 12,
+            'post_status' => 'publish',
+            'orderby' => ['date' => 'DESC'],
+            'meta_query' => $meta_query,
+        ]);
+        $ids = wp_list_pluck($posts, 'ID');
+        $postBucket = $this->arrayMergeWeighted($postBucket, $ids, 'date');
 
-        //     d($postBucket, $ids
-        // );
         /**
          * Create a lookup table array with IDs and occurrence counts.
          */
-        $ids = array_map(fn($n) => $n->ID, $postBucket);
-        $counts = array_count_values($ids);
+        $counts = array_count_values($postBucket);
 
-        // d($ids, $counts);
-
-        // $posts()
         $rankedPosts = [];
         foreach ($counts as $key => $count) {
             $thePost = get_post($key);
@@ -447,8 +608,9 @@ class RelatedPosts extends \WP_REST_Controller
             ];
         }
 
-        // d($rankedPosts, $posts);
-        // sort by count DESC, then by date DESC
+        /**
+         * Sort rankedPosts by count DESC, then date DESC
+         */
         uasort($rankedPosts, function ($a, $b) {
             $cmp = $b['count'] - $a['count'];
             if ($cmp === 0) {
@@ -457,17 +619,9 @@ class RelatedPosts extends \WP_REST_Controller
             return $cmp;
         });
 
-        // $rankedPosts = array_filter($rankedPosts, function ($p) {
-        //     return !in_array($p['post']->post_type, $this->types);
-        // });
-// d($rankedPosts);
         return array_map(function ($n) {
             return $n['post'];
         }, $rankedPosts);
-
-        // TODO: Do these
-        // $this->_filterPostsWithoutImages();
-        // $this->_filterPostTypes();
     }
 
     /**
@@ -514,136 +668,20 @@ class RelatedPosts extends \WP_REST_Controller
         return $output;
     }
 
-    // TODO: Waste of space, inline these
-    public function _filterPostsWithoutImages()
-    {
-        $this->posts = array_filter($this->posts, 'has_post_thumbnail');
-    }
-
-    // public function _filterPostTypes()
-    // {
-    //     $this->posts = array_filter($this->posts, function ($p) {
-    //         return !in_array($p->post_type, $this->types);
-    //     });
-    // }
-
     /**
      * Get related posts
      * @param  integer $id  a post ID
-     * @param  integer $count  number of related posts to return
-     * @param  integer $offset offset
-     * @return [type]          [description]
+     * @param  array $args  number of related posts to return
+     * @return array       Returns an array of posts, or an empty array
      */
-    public function get($count = 3, $offset = 0, $id = 0)
+    public function get($count = null, $args = [])
     {
-        global $post;
+        $cleanArgs = $this->normalizeArgs($args);
+        $offset = $cleanArgs['offset'] ?? 0;
+        $count = $count ?: $cleanArgs['posts_per_page'];
+        $posts = array_slice($this->fetchPosts($cleanArgs), $offset, $count);
 
-        $the_post = get_post($id) ?? $post;
-
-        // d($post);
-
-        // d($count, $offset, $id, $post, $the_post);
-
-        if (!$the_post) {
-            return new \WP_Error('rest_post_invalid_id', 'Invalid post ID.', ['status' => 404]);
-        }
-
-        $posts = array_slice($this->fetchPosts($the_post), $offset, $count);
-
-        // d($posts);
-        $ids = wp_list_pluck($posts, 'ID');
-        $post_types = array_unique(wp_list_pluck($posts, 'post_type'));
-        // THIS MIGHT NOT BE NECESSARY? DOES IT WORK FROM JUST THE post POST_TYPE?
-
-        $controllers = [];
-        foreach ($post_types as $post_type) {
-            $controllers[$post_type] = new \WP_REST_Posts_Controller($post_type);
-        }
-
-        if (empty($posts)) {
-            /**
-             * TODO: Does this ever happen?
-             * $posts will always be an array
-             * TODO: Needs to return an error
-             */
-            return rest_ensure_response($posts);
-        }
-
-        $data = [];
-
-        // TODO: This translation to REST should happen separately, (if at all?)
-        //       For regular usage, we can save some ticks and just work with native
-        //       WP_Post objects
-        foreach ($posts as $post) {
-            $response = $controllers[$post->post_type]->prepare_item_for_response(
-                $post,
-                new \WP_REST_Request()
-                // $controllers[$post->post_type]->get_collection_params()
-            );
-            // $post_controller = new \WP_REST_Posts_Controller($post->post_type);
-
-            // $response = $this->prepare_item_for_response( $post, $request );
-            // $response = rest_ensure_response($post);
-
-            // $response = (new \WP_REST_Response($post))->get_data();
-            // $response = $post_controller->prepare_item_for_response($post, []);
-            // $data[] = $post_controller->prepare_response_for_collection(rest_ensure_response($data));
-            $data[] = $this->prepare_response_for_collection($response);
-        }
-
-        // d($data);
-        return $data;
-
-        // return $relQuery->posts;
-
-        // return array_slice($this->osts($the_post), $offset, $count);
-        // }
-        // return [];
-    }
-
-    /**
-     * Get related posts matching the given type
-     * @param  string  $type  Slug of the type to get
-     * @param  integer $count number of related posts to return
-     * @return array         an array of posts
-     */
-    public function getType($type, $count = 3, $offset = 0)
-    {
-        $posts = array_filter($this->posts, function ($n) use ($type) {
-            return $n->post_type === $type;
-        });
-
-        /**
-         * If the list of post_type-filtered posts is less than $count,
-         * append a shuffled array of all selected posts from the 5th index
-         */
-        if (count($posts) < $count) {
-            $extra_posts = $this->randomizer->shuffleArray(array_slice($this->posts, 5));
-            $posts = array_merge($posts, $extra_posts);
-        }
-        return array_slice($posts, $offset, $count);
-    }
-
-    /**
-     * Get related posts excluding the given type
-     * @param  string  $type  Slug of the type NOT to get
-     * @param  integer $count number of related posts to return
-     * @return array         an array of posts
-     */
-    public function getNotType($type, $count = 3, $offset = 0)
-    {
-        $posts = array_filter($this->posts, function ($n) use ($type) {
-            return $n->post_type !== $type;
-        });
-        /**
-         * If the filtered list of posts is less than $count, append
-         * a shuffled array of the last 20 selected posts
-         */
-        if (count($posts) < $count) {
-            $extra_posts = $this->randomizer->shuffleArray(array_slice($this->posts, -20));
-            $posts = array_merge($posts, $extra_posts);
-        }
-        return array_slice($posts, $offset, $count);
+        return $posts;
     }
 }
 
