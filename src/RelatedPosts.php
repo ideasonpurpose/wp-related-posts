@@ -149,7 +149,7 @@ class RelatedPosts extends \WP_REST_Controller
         $this->namespace = 'ideasonpurpose/v1';
         $this->rest_base = 'related_posts';
         $this->rest_base_MINE = "{$this->namespace}/{$this->rest_base}";
-        add_action('rest_api_init', [$this, 'registerRestRoutes']);
+        // add_action('rest_api_init', [$this, 'registerRestRoutes']);
 
         $this->setDefaults();
         $this->normalizeArgs($args);
@@ -675,7 +675,7 @@ class RelatedPosts extends \WP_REST_Controller
      * @param  array $args  number of related posts to return
      * @return array       Returns an array of posts, or an empty array
      */
-    public function get($count = null, $args = [])
+    public function get($args = [])
     {
         $cleanArgs = $this->normalizeArgs($args);
 
@@ -686,8 +686,8 @@ class RelatedPosts extends \WP_REST_Controller
             return [];
         }
         $offset = $cleanArgs['offset'] ?? 0;
-        $count = $count ?: $cleanArgs['posts_per_page'];
-        $posts = array_slice($this->fetchPosts($cleanArgs), $offset, $count);
+        $per_page = $cleanArgs['posts_per_page'];
+        $posts = array_slice($this->fetchPosts($cleanArgs), $offset, $per_page);
 
         return $posts;
     }
