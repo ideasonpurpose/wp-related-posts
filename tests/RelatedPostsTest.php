@@ -13,8 +13,8 @@ final class RelatedPostsTest extends TestCase
 {
     public function setUp(): void
     {
-        global $post, $posts, $actions, $filters, $transients;
-        unset($post);
+        global $posts, $actions, $filters, $transients;
+        unset($GLOBALS['post']);
         $posts = [];
         $actions = [];
         $filters = [];
@@ -240,6 +240,24 @@ final class RelatedPostsTest extends TestCase
         $this->assertSame($expected, $actual);
     }
 
+    public function testNormalizeArgs_noPost()
+    {
+        global $post, $posts, $get_posts;
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $posts = [
+            (object) [
+                'ID' => 222,
+            ],
+        ];
+        $src = [];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertNull($post);
+        $this->assertNotNull($actual['post']);
+    }
     // public function testValidateAndMergeArgs()
     // {
     //     $a = 5;
@@ -396,16 +414,16 @@ final class RelatedPostsTest extends TestCase
         // d($transients, $get_transient, $set_transient);
     }
 
-    public function testFetchPosts_noPost()
-    {
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([])
-            ->getMock();
+    // public function testFetchPosts_noPost()
+    // {
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods([])
+    //         ->getMock();
 
-        $actual = $rp->fetchPosts([]);
-        $this->assertEmpty($actual);
-    }
+    //     $actual = $rp->fetchPosts([]);
+    //     $this->assertEmpty($actual);
+    // }
 
     public function testFetchPosts_debug()
     {
@@ -561,7 +579,9 @@ final class RelatedPostsTest extends TestCase
             ->getMock();
 
         $mockArgs = ['args' => 'mock'];
-        $rp->expects($this->exactly(2))->method('normalizeArgs')->willReturn($mockArgs);
+        $rp->expects($this->exactly(3))
+            ->method('normalizeArgs')
+            ->willReturn($mockArgs, $mockArgs, false);
 
         $rp->expects($this->exactly(2))
             ->method('fetchPosts')
@@ -575,6 +595,9 @@ final class RelatedPostsTest extends TestCase
         $expected = 4;
         $actual = $rp->get($expected);
         $this->assertCount($expected, $actual);
+
+        $actual = $rp->get(25);
+        $this->assertEmpty($actual);
     }
 
     /**

@@ -337,6 +337,15 @@ class RelatedPosts extends \WP_REST_Controller
         $cleanArgs['post'] = array_key_exists('post', $args) ? $args['post'] : $post;
         $cleanArgs['post'] = get_post($cleanArgs['post']); // returns a WP_Post or null
 
+        if (!$cleanArgs['post']) {
+            $latest_post = get_posts(['post_type' => 'any', 'posts_per_page' => 1]);
+            $cleanArgs['post'] = array_pop($latest_post);
+        }
+
+        if (!$cleanArgs['post']) {
+            return false;
+        }
+
         /**
          * Ensure weights is an array of integers
          */
@@ -486,9 +495,6 @@ class RelatedPosts extends \WP_REST_Controller
          * store posts in an 8-hour transient to conserve queries and to prevent
          * spiders from thinking the page is changing too often.
          */
-        if (!array_key_exists('post', $cleanArgs)) {
-            return [];
-        }
         $transientName = $this->getTransientName($cleanArgs);
         $posts = $this->WP_DEBUG ? false : get_transient($transientName);
         if ($posts === false) {
@@ -514,11 +520,6 @@ class RelatedPosts extends \WP_REST_Controller
      */
     public function collectPosts(array $cleanArgs): array
     {
-        // This might be an issue in the editor, maybe return recent posts instead?
-        if (!$cleanArgs['post']) {
-            return [];
-        }
-
         /**
          * This will hold an array of post IDs which will be added multiple times
          * after being merged in with arrayMergeWeighted().
@@ -677,6 +678,13 @@ class RelatedPosts extends \WP_REST_Controller
     public function get($count = null, $args = [])
     {
         $cleanArgs = $this->normalizeArgs($args);
+
+        if (!$cleanArgs) {
+            /**
+             * If args can't be parsed, normalizeArgs will return false
+             */
+            return [];
+        }
         $offset = $cleanArgs['offset'] ?? 0;
         $count = $count ?: $cleanArgs['posts_per_page'];
         $posts = array_slice($this->fetchPosts($cleanArgs), $offset, $count);
