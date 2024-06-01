@@ -93,7 +93,7 @@ class RelatedPosts extends \WP_REST_Controller
     /**
      * Default number of related posts to return
      */
-    public $count = 3;
+    public $posts_per_page = 3;
 
     /**
      * Omit post_types from fetched list of related posts.
@@ -149,7 +149,7 @@ class RelatedPosts extends \WP_REST_Controller
         $this->namespace = 'ideasonpurpose/v1';
         $this->rest_base = 'related_posts';
         $this->rest_base_MINE = "{$this->namespace}/{$this->rest_base}";
-        // add_action('rest_api_init', [$this, 'registerRestRoutes']);
+        add_action('rest_api_init', [$this, 'registerRestRoutes']);
 
         $this->setDefaults();
         $this->normalizeArgs($args);
@@ -599,6 +599,8 @@ class RelatedPosts extends \WP_REST_Controller
          */
         $counts = array_count_values($postBucket);
 
+        // TODO: Extract total number of unique collected IDs here for debugging
+
         $rankedPosts = [];
         foreach ($counts as $key => $count) {
             $thePost = get_post($key);
@@ -685,8 +687,15 @@ class RelatedPosts extends \WP_REST_Controller
              */
             return [];
         }
+        /**
+         * Handle legacy first-arg is a number, apply back to default $cleanArgs
+         */
+        if (is_numeric($args)) {
+            $cleanArgs['posts_per_page'] = $args;
+        }
+
         $offset = $cleanArgs['offset'] ?? 0;
-        $per_page = $cleanArgs['posts_per_page'];
+        $per_page = $cleanArgs['posts_per_page'] ?? $this->posts_per_page;
         $posts = array_slice($this->fetchPosts($cleanArgs), $offset, $per_page);
 
         return $posts;

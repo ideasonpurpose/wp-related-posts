@@ -578,15 +578,15 @@ final class RelatedPostsTest extends TestCase
             ->onlyMethods(['normalizeArgs', 'fetchPosts'])
             ->getMock();
 
-        $mockArgs = ['args' => 'mock'];
+        $mockArgs = ['mock' => 'args'];
         $rp->expects($this->exactly(3))
             ->method('normalizeArgs')
             ->willReturn($mockArgs, $mockArgs, false);
 
         $rp->expects($this->exactly(2))
             ->method('fetchPosts')
-            ->with($this->equalTo($mockArgs))
-            ->willReturn([1, 2, 3, 4, 5, 6]);
+            ->with($this->arrayHasKey('mock'))
+            ->willReturn([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
         $expected = 2;
         $actual = $rp->get($expected);
@@ -598,6 +598,31 @@ final class RelatedPostsTest extends TestCase
 
         $actual = $rp->get(25);
         $this->assertEmpty($actual);
+    }
+
+    public function testGet_integerArgs()
+    {
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['normalizeArgs', 'fetchPosts'])
+            ->getMock();
+
+        $expected = 2;
+
+        $rp->expects($this->exactly(1))
+            ->method('normalizeArgs')
+            ->willReturn(['mock' => 'args']);
+
+        $rp->expects($this->exactly(1))
+            ->method('fetchPosts')
+            ->with($this->arrayHasKey('posts_per_page'))
+            // ->with($this->arrayHasKey('posts_per_page', 2))
+            // ->with($this->callback(fn($arg) => $this->assertArrayHasKey('posts_per_page', $arg)))
+            ->willReturn([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        $actual = $rp->get($expected);
+
+        $this->assertCount($expected, $actual);
     }
 
     /**
