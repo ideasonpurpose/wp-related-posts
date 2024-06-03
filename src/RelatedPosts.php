@@ -342,6 +342,13 @@ class RelatedPosts extends \WP_REST_Controller
             $cleanArgs['post'] = array_pop($latest_post);
         }
 
+        if (
+            get_post_type($cleanArgs['post']) === 'revision' &&
+            $cleanArgs['post']->post_parent !== 0
+        ) {
+            $cleanArgs['post'] = get_post($cleanArgs['post']->post_parent);
+        }
+
         if (!$cleanArgs['post']) {
             return false;
         }

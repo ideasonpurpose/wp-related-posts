@@ -13,11 +13,12 @@ final class RelatedPostsTest extends TestCase
 {
     public function setUp(): void
     {
-        global $posts, $actions, $filters, $transients;
+        global $posts, $actions, $get_post, $filters, $transients;
         unset($GLOBALS['post']);
         $posts = [];
         $actions = [];
         $filters = [];
+        $get_post = [];
         $transients = [];
     }
 
@@ -58,7 +59,7 @@ final class RelatedPostsTest extends TestCase
 
     public function testInitPost_argsInteger()
     {
-        global $post, $posts;
+        global $post, $get_post;
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
             ->onlyMethods([])
@@ -70,7 +71,11 @@ final class RelatedPostsTest extends TestCase
         ];
 
         $expected = 124;
-        $posts[$expected] = (object) [
+        // $posts[$expected] = (object) [
+        //     'ID' => $expected,
+        //     'post_type' => 'book',
+        // ];
+        $get_post[] = (object) [
             'ID' => $expected,
             'post_type' => 'book',
         ];
@@ -258,6 +263,36 @@ final class RelatedPostsTest extends TestCase
         $this->assertNull($post);
         $this->assertNotNull($actual['post']);
     }
+
+    public function testNormalizeArgs_revision()
+    {
+        global $post, $get_post;
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods([])
+            ->getMock();
+
+        $expected = 6677;
+        $post = (object) [
+            'ID' => 4455,
+            'post_type' => 'revision',
+            'post_parent' => $expected,
+        ];
+
+        $get_post = [
+            (object) [
+                'ID' => $expected,
+                'post_type' => 'post',
+                'post_parent' => 0,
+            ],
+        ];
+
+        $src = ['post' => $post];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertNotEquals('revision', $actual['post']->post_type);
+        $this->assertEquals($expected, $actual['post']->ID);
+    }
+
     // public function testValidateAndMergeArgs()
     // {
     //     $a = 5;
@@ -491,7 +526,7 @@ final class RelatedPostsTest extends TestCase
 
     public function testCollectPosts()
     {
-        global $get_posts, $object_taxonomies, $posts, $the_terms, $wp_list_pluck;
+        global $get_posts, $get_post, $object_taxonomies, $posts, $the_terms, $wp_list_pluck;
 
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
@@ -518,7 +553,8 @@ final class RelatedPostsTest extends TestCase
         $object_taxonomies = ['topic' => 'topic', 'color' => 'color'];
         $the_terms = [(object) ['slug' => 'purple']];
         $get_posts = null;
-        $posts = [11 => $one, 22 => $two, 33 => $three];
+        // $posts = [11 => $one, 22 => $two, 33 => $three];
+        $get_post = [$one, $two, $three];
         $wp_list_pluck = [1, 2, 3];
 
         $actual = $rp->collectPosts([
