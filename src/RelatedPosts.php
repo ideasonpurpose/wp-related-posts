@@ -536,17 +536,13 @@ class RelatedPosts extends \WP_REST_Controller
          */
         $postBucket = [];
 
-        /**
-         * Get all public post_types, then filter out pages and attachments
-         */
-        // $post_types = array_filter($cleanArgs['post_types'], fn($t) => $t !== 'attachment');
+        $post = $cleanArgs['post'];
         $post_types = $cleanArgs['post_types'];
+
+        $taxonomies = get_object_taxonomies($post->post_type, 'objects');
 
         $thumb_query = ['key' => '_thumbnail_id', 'compare' => 'EXISTS'];
         $meta_query = $cleanArgs['has_post_thumbnail'] ? [$thumb_query] : [];
-
-        $post = $cleanArgs['post'];
-        $taxonomies = get_object_taxonomies($post->post_type, 'objects');
 
         /**
          * Collect posts with the same terms across all of this object's taxonomies
@@ -578,20 +574,25 @@ class RelatedPosts extends \WP_REST_Controller
         }
 
         /**
-         * Collect the most recent posts of the same post_type
+         * If the posts's post_type is included in post_types, then collect
+         * the most recent posts of the same post_type
          */
-        $posts = get_posts([
-            'post_type' => $post->post_type,
-            'post__not_in' => [$post->ID],
-            'posts_per_page' => 12,
-            'orderby' => ['date' => 'DESC'],
-            'meta_query' => $meta_query,
-        ]);
-        $ids = wp_list_pluck($posts, 'ID');
-        $postBucket = $this->arrayMergeWeighted($postBucket, $ids, 'post_type');
+        if (in_array($post->post_type, $post_types)) {
+            $posts = get_posts([
+                'post_type' => $post->post_type,
+                'post__not_in' => [$post->ID],
+                'posts_per_page' => 12,
+                'orderby' => ['date' => 'DESC'],
+                'meta_query' => $meta_query,
+            ]);
+            $ids = wp_list_pluck($posts, 'ID');
+            $postBucket = $this->arrayMergeWeighted($postBucket, $ids, 'post_type');
+        }
 
         /**
          * Get 12 most recent posts in $post_types
+         *
+         * TODO: Should this happen for each post_type?
          */
         $posts = get_posts([
             'post_type' => $post_types,
@@ -608,6 +609,12 @@ class RelatedPosts extends \WP_REST_Controller
          * Create a lookup table array with IDs and occurrence counts.
          */
         $counts = array_count_values($postBucket);
+
+        if ($this->WP_DEBUG) {
+            $bucketCount = count($postBucket);
+            $countsCount = count($counts);
+            error_log("RelatedContent collected {$bucketCount} occurances of {$countsCount} posts.");
+        }
 
         // TODO: Extract total number of unique collected IDs here for debugging
 
