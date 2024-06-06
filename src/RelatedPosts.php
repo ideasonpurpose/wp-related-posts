@@ -383,7 +383,10 @@ class RelatedPosts extends \WP_REST_Controller
         }
 
         if (array_key_exists('has_post_thumbnail', $args)) {
-            $cleanArgs['has_post_thumbnail'] = (bool) $args['has_post_thumbnail'];
+            $cleanArgs['has_post_thumbnail'] = filter_var(
+                $args['has_post_thumbnail'],
+                FILTER_VALIDATE_BOOLEAN
+            );
         }
 
         if (array_key_exists('offset', $args)) {

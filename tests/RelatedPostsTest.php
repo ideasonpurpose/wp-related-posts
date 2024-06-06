@@ -218,7 +218,17 @@ final class RelatedPostsTest extends TestCase
         $this->assertSame($expected, $actual);
 
         $src = ['has_post_thumbnail' => 'no'];
+        $expected = ['post' => $post, 'has_post_thumbnail' => false];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['has_post_thumbnail' => 'true'];
         $expected = ['post' => $post, 'has_post_thumbnail' => true];
+        $actual = $rp->normalizeArgs($src);
+        $this->assertSame($expected, $actual);
+
+        $src = ['has_post_thumbnail' => 'false'];
+        $expected = ['post' => $post, 'has_post_thumbnail' => false];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
