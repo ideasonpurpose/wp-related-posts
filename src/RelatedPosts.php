@@ -178,6 +178,8 @@ class RelatedPosts extends \WP_REST_Controller
         ];
     }
 
+    // NOTE: REFACTORED AWAY, UNUSED??
+
     /*
      * Set default types from the global $post or $args['post'] if set
      *   $this->post will be a WP_Post object or null.
@@ -185,30 +187,30 @@ class RelatedPosts extends \WP_REST_Controller
      * @param array $args
      * @return void
      */
-    public function initPost($args = [])
-    {
-        global $post;
-        $this->post = array_key_exists('post', $args) ? $args['post'] : $post;
-        $this->post = get_post($this->post); // returns a WP_Post or null
-    }
+    // public function initPost($args = [])
+    // {
+    //     global $post;
+    //     $this->post = array_key_exists('post', $args) ? $args['post'] : $post;
+    //     $this->post = get_post($this->post); // returns a WP_Post or null
+    // }
 
     /**
      * $this->post should always be either a WP_Post object, or null
      *
      * If $args contains an array (or a string wrapped) return that unmodified
      */
-    public function initTypes($args = []): void
-    {
-        if (array_key_exists('post_types', $args)) {
-            $this->types = is_array($args['post_types'])
-                ? $args['post_types']
-                : [$args['post_types']];
-        }
+    // public function initTypes($args = []): void
+    // {
+    //     if (array_key_exists('post_types', $args)) {
+    //         $this->types = is_array($args['post_types'])
+    //             ? $args['post_types']
+    //             : [$args['post_types']];
+    //     }
 
-        if (!array_key_exists('post_types', $args) && $this->post) {
-            $this->types = [$this->post->post_type];
-        }
-    }
+    //     if (!array_key_exists('post_types', $args) && $this->post) {
+    //         $this->types = [$this->post->post_type];
+    //     }
+    // }
 
     /**
      * Register REST routes to return Related Posts
@@ -613,7 +615,9 @@ class RelatedPosts extends \WP_REST_Controller
         if ($this->WP_DEBUG) {
             $bucketCount = count($postBucket);
             $countsCount = count($counts);
-            error_log("RelatedContent collected {$bucketCount} occurances of {$countsCount} posts.");
+            error_log(
+                "RelatedContent collected {$bucketCount} occurrences of {$countsCount} posts."
+            );
         }
 
         // TODO: Extract total number of unique collected IDs here for debugging

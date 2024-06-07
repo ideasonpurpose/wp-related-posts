@@ -6,6 +6,14 @@ use PHPUnit\Framework\TestCase;
 
 Test\Stubs::init();
 
+if (!function_exists(__NAMESPACE__ . '\error_log')) {
+    function error_log($err)
+    {
+        global $error_log;
+        $error_log = $err;
+    }
+}
+
 /**
  * @covers IdeasOnPurpose\WP\RelatedPosts
  */
@@ -38,129 +46,129 @@ final class RelatedPostsTest extends TestCase
         $this->assertInstanceOf('\Random\Randomizer', $actual->randomizer);
     }
 
-    public function testInitPost_globalPost()
-    {
-        global $post;
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([])
-            ->getMock();
+    // public function testInitPost_globalPost()
+    // {
+    //     global $post;
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods([])
+    //         ->getMock();
 
-        $expected = 44;
-        $post = (object) [
-            'ID' => $expected,
-            'post_type' => 'post',
-        ];
+    //     $expected = 44;
+    //     $post = (object) [
+    //         'ID' => $expected,
+    //         'post_type' => 'post',
+    //     ];
 
-        $rp->initPost();
+    //     $rp->initPost();
 
-        $this->assertEquals($expected, $rp->post->ID);
-    }
+    //     $this->assertEquals($expected, $rp->post->ID);
+    // }
 
-    public function testInitPost_argsInteger()
-    {
-        global $post, $get_post;
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([])
-            ->getMock();
+    // public function testInitPost_argsInteger()
+    // {
+    //     global $post, $get_post;
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods([])
+    //         ->getMock();
 
-        $post = (object) [
-            'ID' => 55,
-            'post_type' => 'post',
-        ];
+    //     $post = (object) [
+    //         'ID' => 55,
+    //         'post_type' => 'post',
+    //     ];
 
-        $expected = 124;
-        // $posts[$expected] = (object) [
-        //     'ID' => $expected,
-        //     'post_type' => 'book',
-        // ];
-        $get_post[] = (object) [
-            'ID' => $expected,
-            'post_type' => 'book',
-        ];
+    //     $expected = 124;
+    //     // $posts[$expected] = (object) [
+    //     //     'ID' => $expected,
+    //     //     'post_type' => 'book',
+    //     // ];
+    //     $get_post[] = (object) [
+    //         'ID' => $expected,
+    //         'post_type' => 'book',
+    //     ];
 
-        $rp->initPost(['post' => $expected]);
+    //     $rp->initPost(['post' => $expected]);
 
-        $this->assertNotEquals($post->ID, $rp->post->ID);
-        $this->assertEquals($expected, $rp->post->ID);
-    }
+    //     $this->assertNotEquals($post->ID, $rp->post->ID);
+    //     $this->assertEquals($expected, $rp->post->ID);
+    // }
 
-    public function testInitTypes()
-    {
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([])
-            ->getMock();
+    // public function testInitTypes()
+    // {
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods([])
+    //         ->getMock();
 
-        $expected = 'book';
-        $rp->post = (object) [
-            'ID' => 88,
-            'post_type' => $expected,
-        ];
-        $rp->initTypes();
+    //     $expected = 'book';
+    //     $rp->post = (object) [
+    //         'ID' => 88,
+    //         'post_type' => $expected,
+    //     ];
+    //     $rp->initTypes();
 
-        $this->assertIsArray($rp->types);
-        $this->assertContains($expected, $rp->types);
-    }
+    //     $this->assertIsArray($rp->types);
+    //     $this->assertContains($expected, $rp->types);
+    // }
 
-    public function testInitTypes_noPost()
-    {
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([])
-            ->getMock();
+    // public function testInitTypes_noPost()
+    // {
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods([])
+    //         ->getMock();
 
-        $rp->initTypes();
+    //     $rp->initTypes();
 
-        $this->assertIsArray($rp->types);
-        $this->assertEmpty($rp->types);
+    //     $this->assertIsArray($rp->types);
+    //     $this->assertEmpty($rp->types);
 
-        $expected = ['dog'];
-        $rp->types = $expected;
+    //     $expected = ['dog'];
+    //     $rp->types = $expected;
 
-        $rp->initTypes();
+    //     $rp->initTypes();
 
-        $this->assertSame($expected, $rp->types);
-    }
+    //     $this->assertSame($expected, $rp->types);
+    // }
 
-    public function testInitTypes_typesArray()
-    {
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([])
-            ->getMock();
+    // public function testInitTypes_typesArray()
+    // {
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods([])
+    //         ->getMock();
 
-        $expected = ['animals'];
+    //     $expected = ['animals'];
 
-        $rp->initTypes(['post_types' => $expected]);
+    //     $rp->initTypes(['post_types' => $expected]);
 
-        $this->assertIsArray($rp->types);
-        $this->assertSame($expected, $rp->types);
+    //     $this->assertIsArray($rp->types);
+    //     $this->assertSame($expected, $rp->types);
 
-        $rp->types = $expected;
-    }
+    //     $rp->types = $expected;
+    // }
 
-    public function testInitTypes_typesString()
-    {
-        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods([])
-            ->getMock();
+    // public function testInitTypes_typesString()
+    // {
+    //     $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+    //         ->disableOriginalConstructor()
+    //         ->onlyMethods([])
+    //         ->getMock();
 
-        $expected = 'film';
+    //     $expected = 'film';
 
-        $rp->initTypes(['post_types' => $expected]);
+    //     $rp->initTypes(['post_types' => $expected]);
 
-        $this->assertIsArray($rp->types);
-        $this->assertContains($expected, $rp->types);
+    //     $this->assertIsArray($rp->types);
+    //     $this->assertContains($expected, $rp->types);
 
-        $rp->types = [$expected];
-    }
+    //     $rp->types = [$expected];
+    // }
 
     public function testNormalizeArgs()
     {
-        global $post, $post_type;
+        global $get_post, $post_type;
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
             ->onlyMethods([])
@@ -170,6 +178,8 @@ final class RelatedPostsTest extends TestCase
             'ID' => 55,
             'post_type' => 'post',
         ];
+
+        $get_post = [$post];
 
         $src = ['weights' => ['dog' => '125']];
         $expected = ['post' => $post, 'weights' => ['dog' => 125]];
@@ -178,6 +188,7 @@ final class RelatedPostsTest extends TestCase
         $this->assertSame($expected, $actual);
 
         // post_types should not contain duplicates or 'attachment'
+        $get_post = [$post];
         $src = ['post_types' => ['dog', 'dog', 'attachment']];
         $expected = ['post' => $post, 'post_types' => ['dog']];
         $actual = $rp->normalizeArgs($src);
@@ -185,6 +196,7 @@ final class RelatedPostsTest extends TestCase
         $this->assertSame($expected, $actual);
 
         // post_types can not be empty
+        $get_post = [$post];
         $post_type = $post->post_type;
         $src = ['post_types' => []];
         $expected = ['post' => $post, 'post_types' => [$post->post_type]];
@@ -192,63 +204,75 @@ final class RelatedPostsTest extends TestCase
         $this->assertNotContains('attachment', $actual['post_types']);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['offset' => '4'];
         $expected = ['post' => $post, 'offset' => 4];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['offset' => 'not a number'];
         $expected = ['post' => $post];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['has_post_thumbnail' => true];
         $expected = ['post' => $post, 'has_post_thumbnail' => true];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['has_post_thumbnail' => false];
         $expected = ['post' => $post, 'has_post_thumbnail' => false];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['has_post_thumbnail' => 'yes'];
         $expected = ['post' => $post, 'has_post_thumbnail' => true];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['has_post_thumbnail' => 'no'];
         $expected = ['post' => $post, 'has_post_thumbnail' => false];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['has_post_thumbnail' => 'true'];
         $expected = ['post' => $post, 'has_post_thumbnail' => true];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['has_post_thumbnail' => 'false'];
         $expected = ['post' => $post, 'has_post_thumbnail' => false];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['posts_per_page' => 'not a number'];
         $expected = ['post' => $post];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
+        $get_post = [$post];
         $src = ['posts_per_page' => '4'];
         $expected = ['post' => $post, 'posts_per_page' => 4];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
         // too big
+        $get_post = [$post];
         $src = ['posts_per_page' => 125];
         $expected = ['post' => $post, 'posts_per_page' => 20];
         $actual = $rp->normalizeArgs($src);
         $this->assertSame($expected, $actual);
 
         // too small
+        $get_post = [$post];
         $src = ['posts_per_page' => -1];
         $expected = ['post' => $post, 'posts_per_page' => 1];
         $actual = $rp->normalizeArgs($src);
@@ -276,28 +300,28 @@ final class RelatedPostsTest extends TestCase
 
     public function testNormalizeArgs_revision()
     {
-        global $post, $get_post;
+        global $get_post;
         $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
             ->disableOriginalConstructor()
             ->onlyMethods([])
             ->getMock();
 
         $expected = 6677;
-        $post = (object) [
+        $post1 = (object) [
             'ID' => 4455,
             'post_type' => 'revision',
             'post_parent' => $expected,
         ];
 
-        $get_post = [
-            (object) [
-                'ID' => $expected,
-                'post_type' => 'post',
-                'post_parent' => 0,
-            ],
+        $post2 = (object) [
+            'ID' => $expected,
+            'post_type' => 'post',
+            'post_parent' => 0,
         ];
 
-        $src = ['post' => $post];
+        $get_post = [$post1, $post2];
+
+        $src = ['post' => $post1];
         $actual = $rp->normalizeArgs($src);
         $this->assertNotEquals('revision', $actual['post']->post_type);
         $this->assertEquals($expected, $actual['post']->ID);
@@ -543,11 +567,7 @@ final class RelatedPostsTest extends TestCase
             ->onlyMethods(['arrayMergeWeighted'])
             ->getMock();
 
-        $one = (object) ['ID' => 11, 'post_date' => '2024-05-31'];
-        $two = (object) ['ID' => 22, 'post_date' => '2024-05-15'];
-        $three = (object) ['ID' => 33, 'post_date' => '2024-05-01'];
-
-        $rp->expects($this->exactly(4))
+        $rp->expects($this->exactly(3))
             ->method('arrayMergeWeighted')
             ->willReturn([11, 22, 22, 33, 33]);
 
@@ -559,12 +579,14 @@ final class RelatedPostsTest extends TestCase
         /**
          * Set up globals for mocking
          */
+        $one = (object) ['ID' => 11, 'post_date' => '2024-05-31'];
+        $two = (object) ['ID' => 22, 'post_date' => '2024-05-15'];
+        $three = (object) ['ID' => 33, 'post_date' => '2024-05-01'];
+        $get_post = [$one, $two, $three];
         $post_types = ['page', 'article'];
         $object_taxonomies = ['topic' => 'topic', 'color' => 'color'];
         $the_terms = [(object) ['slug' => 'purple']];
         $get_posts = null;
-        // $posts = [11 => $one, 22 => $two, 33 => $three];
-        $get_post = [$one, $two, $three];
         $wp_list_pluck = [1, 2, 3];
 
         $actual = $rp->collectPosts([
@@ -596,6 +618,86 @@ final class RelatedPostsTest extends TestCase
         // $this->assertContains('color', ...$get_posts[1]['tax_query']);
 
         $this->assertSame([22, 33, 11], array_keys($actual));
+    }
+
+    public function testCollectPosts_postTypeMatch()
+    {
+        global $get_posts, $get_post, $object_taxonomies, $posts, $the_terms, $wp_list_pluck;
+
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['arrayMergeWeighted'])
+            ->getMock();
+
+        $rp->expects($this->exactly(2))
+            ->method('arrayMergeWeighted')
+            ->willReturn([111, 222, 333]);
+
+        $post = (object) [
+            'ID' => '27',
+            'post_type' => 'news',
+        ];
+
+        /**
+         * Set up globals for mocking
+         */
+        $one = (object) ['ID' => 111, 'post_date' => '2024-05-31'];
+        $two = (object) ['ID' => 222, 'post_date' => '2024-05-15'];
+        $three = (object) ['ID' => 333, 'post_date' => '2024-05-01'];
+        $get_post = [$one, $two, $three];
+        $post_types = ['news', 'article'];
+        $object_taxonomies = [];
+        $get_posts = null;
+        $posts = [111 => $one, 222 => $two, 333 => $three];
+
+        $rp->collectPosts([
+            'post' => $post,
+            'post_types' => $post_types,
+            'has_post_thumbnail' => false,
+        ]);
+    }
+
+    public function testCollectPosts_debugLog()
+    {
+        global $error_log, $get_post, $object_taxonomies, $posts;
+        $error_log = '';
+
+        $rp = $this->getMockBuilder(\IdeasOnPurpose\WP\RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['arrayMergeWeighted'])
+            ->getMock();
+
+        $rp->method('arrayMergeWeighted')->willReturn([111, 222, 333]);
+
+        $rp->WP_DEBUG = true;
+
+        $post = (object) [
+            'ID' => '27',
+            'post_type' => 'news',
+        ];
+
+        /**
+         * Set up globals for mocking
+         */
+        $one = (object) ['ID' => 111, 'post_date' => '2024-05-31'];
+        $two = (object) ['ID' => 222, 'post_date' => '2024-05-15'];
+        $three = (object) ['ID' => 333, 'post_date' => '2024-05-01'];
+        $get_post = [$one, $two, $three];
+        $post_types = ['news', 'article'];
+        $object_taxonomies = [];
+        // $get_posts = null;
+        $posts = [111 => $one, 222 => $two, 333 => $three];
+
+        // $this->expectOutputRegex('/^RelatedContent/');
+        $rp->collectPosts([
+            'post' => $post,
+            'post_types' => $post_types,
+            'has_post_thumbnail' => false,
+        ]);
+
+        $this->assertStringContainsString('RelatedContent collected', $error_log);
+        $this->assertStringContainsString('occurrences', $error_log);
+        $this->assertStringContainsString(count($posts), $error_log);
     }
 
     // public function testCollectPosts_noPost()
