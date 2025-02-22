@@ -2,6 +2,10 @@
 
 namespace IdeasOnPurpose\WP;
 
+use WP_REST_Request;
+use WP_REST_Response;
+use WP_Error;
+
 /**
  *
  * For the REST API, weights can be passed by prefixing any valid slug with weight_
@@ -10,7 +14,7 @@ namespace IdeasOnPurpose\WP;
  * would be translated merged onto default or pre-defined weights as:
  *   [topic => 5, color=>3]
  *
- * The following alises are also reccognized, if both are specified, the last
+ * The following aliases are also recognized, if both are specified, the last
  * one in the query will be used.
  *
  * weight_type = post_type
@@ -47,7 +51,7 @@ namespace IdeasOnPurpose\WP;
  *
  *
  * Two ways of initializing the Rest endpoint:
- * 1. Call the  rest setup action statically. Kind of ugly, hard to test and
+ * 1. Call the rest setup action statically. Kind of ugly, hard to test and
  * different than how we usually do this.
  *
  * 2. Create a new object with no arguments. If there are any arguments passed to
@@ -83,7 +87,7 @@ class RelatedPosts extends \WP_REST_Controller
     ];
 
     /**
-     * Default args, these are the mimimum required to generate a set of
+     * Default args, these are the minimum required to generate a set of
      * related posts, all arguments will me shallow-merged on top of these.
      * Arrays like weights and post_types will be replaced by merged args.
      */
@@ -101,8 +105,10 @@ class RelatedPosts extends \WP_REST_Controller
      * Post_types to include in the set of related content
      *
      * Post_types to include in the set of relatedPosts
+     *
+     * TODO: unused? (testing)
      */
-    public $types = [];
+    // public $types = [];
 
     /**
      * REST API endpoint components, exposed for testing
@@ -214,6 +220,8 @@ class RelatedPosts extends \WP_REST_Controller
 
     /**
      * Register REST routes to return Related Posts
+     *
+     * TODO: Do we need REST routes?
      */
     public function registerRestRoutes()
     {
@@ -224,10 +232,18 @@ class RelatedPosts extends \WP_REST_Controller
         ]);
     }
 
+    /**
+     * TODO: Do we need REST routes?
+     * TODO: Are these even being used? Check NRMP's Related Content block for
+     *       filters which may replace the need for REST data?
+     */
     public function restResponse(\WP_REST_Request $req)
     {
+        // global $post;
         $id = $req->get_param('id');
-        $count = $req->get_param('count') ?? $this->count;
+        $count = $req->get_param('count') ?? $this->posts_per_page;
+
+        // d($id, $count);
 
         $weights = [];
         foreach ($req->get_params() as $param => $val) {
@@ -244,20 +260,19 @@ class RelatedPosts extends \WP_REST_Controller
             $this->weights = array_merge($this->weights, $weights);
         }
 
-        global $post;
-
         $posts = $this->get($count, 0, $id);
 
-        $ids = wp_list_pluck($posts, 'ID');
+        // $ids = wp_list_pluck($posts, 'ID');
 
         $post_types = array_unique(wp_list_pluck($posts, 'post_type'));
 
         $controllers = [];
-        // why not use $this->types?
         foreach ($post_types as $post_type) {
             $controllers[$post_type] = new \WP_REST_Posts_Controller($post_type);
         }
 
+
+        // d($posts, $controllers);
         if (empty($posts)) {
             /**
              * TODO: Does this ever happen?
@@ -267,7 +282,13 @@ class RelatedPosts extends \WP_REST_Controller
             return rest_ensure_response($posts);
         }
 
+        /**
+         * TODO: WTF happens here? This feels like it was abandoned.
+         * $data is created and populated, but then goes nowhere. It's never retured.
+         *
+         */
         $data = [];
+        // d($posts, $data);
 
         // TODO: This translation to REST should happen separately, (if at all?)
         //       For regular usage, we can save some ticks and just work with native
@@ -276,19 +297,12 @@ class RelatedPosts extends \WP_REST_Controller
             $response = $controllers[$post->post_type]->prepare_item_for_response(
                 $post,
                 new \WP_REST_Request()
-                // $controllers[$post->post_type]->get_collection_params()
             );
-            // $post_controller = new \WP_REST_Posts_Controller($post->post_type);
 
-            // $response = $this->prepare_item_for_response( $post, $request );
-            // $response = rest_ensure_response($post);
-
-            // $response = (new \WP_REST_Response($post))->get_data();
-            // $response = $post_controller->prepare_item_for_response($post, []);
-            // $data[] = $post_controller->prepare_response_for_collection(rest_ensure_response($data));
             $data[] = $this->prepare_response_for_collection($response);
         }
 
+        // d($data);
         $res = [
             'id' => $id,
             'posts' => $posts,

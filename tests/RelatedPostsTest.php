@@ -3,6 +3,9 @@
 namespace IdeasOnPurpose\WP;
 
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
+use ReflectionClass;
+use WP_REST_Request;
 
 Test\Stubs::init();
 
@@ -14,9 +17,7 @@ if (!function_exists(__NAMESPACE__ . '\error_log')) {
     }
 }
 
-/**
- * @covers IdeasOnPurpose\WP\RelatedPosts
- */
+#[CoversClass(\IdeasOnPurpose\WP\RelatedPosts::class)]
 final class RelatedPostsTest extends TestCase
 {
     public function setUp(): void
@@ -790,5 +791,50 @@ final class RelatedPostsTest extends TestCase
         $this->assertArrayHasKey('methods', $register_rest_route[0][2]);
         $this->assertArrayHasKey('callback', $register_rest_route[0][2]);
         $this->assertArrayHasKey('permission_callback', $register_rest_route[0][2]);
+    }
+
+    public function testRestResponse()
+    {
+        global $wp_list_pluck;
+
+        $mockRequest = $this->createMock(WP_REST_Request::class);
+        $mockRequest->expects($this->atLeast(2))->method('get_param')->willReturn(321, null);
+        $mockRequest->method('get_params')->willReturn([]);
+
+        // $ref = new ReflectionClass(RelatedPosts::class);
+        // $RelatedPosts = $ref->newInstanceWithoutConstructor();
+        // $RelatedPosts->restResponse($mockRequest);
+        // d($RelatedPosts->weights);
+
+        $RelatedPostsMock = $this->getMockBuilder(RelatedPosts::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get'])
+            ->getMock();
+
+        $post1 = (object) ['post_type' => 'post'];
+        $wp_list_pluck = ['post'];
+        $RelatedPostsMock
+            ->expects($this->once())
+            ->method('get')
+            ->willReturn([$post1]);
+
+        $RelatedPostsMock->restResponse($mockRequest);
+    }
+
+    public function testRestResponse_weights()
+    {
+        $expectedColor = 6;
+        $mockRequest = $this->createMock(WP_REST_Request::class);
+        $mockRequest
+            ->expects($this->once(1))
+            ->method('get_params')
+            ->willReturn(['weight_topic' => 5, 'weight_color' => $expectedColor]);
+
+        $ref = new ReflectionClass(RelatedPosts::class);
+        $RelatedPosts = $ref->newInstanceWithoutConstructor();
+        $RelatedPosts->restResponse($mockRequest);
+
+        $this->assertEquals($expectedColor, $RelatedPosts->weights['color']);
+        // d($RelatedPosts->weights);
     }
 }
