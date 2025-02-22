@@ -286,25 +286,25 @@ class RelatedPosts extends \WP_REST_Controller
         return rest_ensure_response($data);
     }
 
-    public function prepare_item_for_response($post, $request)
-    {
-        $post_data = [];
+    // public function prepare_item_for_response($post, $request)
+    // {
+    //     $post_data = [];
 
-        $schema = $this->get_item_schema($request);
+    //     $schema = $this->get_item_schema($request);
 
-        // We are also renaming the fields to more understandable names.
-        if (isset($schema['properties']['id'])) {
-            $post_data['id'] = (int) $post->ID;
-        }
+    //     // We are also renaming the fields to more understandable names.
+    //     if (isset($schema['properties']['id'])) {
+    //         $post_data['id'] = (int) $post->ID;
+    //     }
 
-        if (isset($schema['properties']['content'])) {
-            $post_data['content'] = apply_filters('the_content', $post->post_content, $post);
-        }
+    //     if (isset($schema['properties']['content'])) {
+    //         $post_data['content'] = apply_filters('the_content', $post->post_content, $post);
+    //     }
 
-        return rest_ensure_response($post_data);
-    }
+    //     return rest_ensure_response($post_data);
+    // }
 
-    /// :TODO: Need to merge input Args on top of the minimul default args
+    /// :TODO: Need to merge input Args on top of the minimal default args
     //         Weights and post_types should be replaced, not deep-merged
 
     /**

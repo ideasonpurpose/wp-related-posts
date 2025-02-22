@@ -587,7 +587,7 @@ final class RelatedPostsTest extends TestCase
         $post_types = ['page', 'article'];
         $object_taxonomies = ['topic' => 'topic', 'color' => 'color'];
         $the_terms = [(object) ['slug' => 'purple']];
-        $get_posts = null;
+        $get_posts = [];
         $wp_list_pluck = [1, 2, 3];
 
         $actual = $rp->collectPosts([
@@ -818,7 +818,9 @@ final class RelatedPostsTest extends TestCase
             ->method('get')
             ->willReturn([$post1]);
 
-        $RelatedPostsMock->restResponse($mockRequest);
+        $actual = $RelatedPostsMock->restResponse($mockRequest);
+
+        $this->assertIsArray($actual);
     }
 
     public function testRestResponse_weights()
