@@ -239,11 +239,8 @@ class RelatedPosts extends \WP_REST_Controller
      */
     public function restResponse(\WP_REST_Request $req)
     {
-        // global $post;
         $id = $req->get_param('id');
         $count = $req->get_param('count') ?? $this->posts_per_page;
-
-        // d($id, $count);
 
         $weights = [];
         foreach ($req->get_params() as $param => $val) {
@@ -262,37 +259,21 @@ class RelatedPosts extends \WP_REST_Controller
 
         $posts = $this->get($count, 0, $id);
 
-        // $ids = wp_list_pluck($posts, 'ID');
-
+        /**
+         * Generate a set of post_type-specific controllers. Doing this in
+         * the following post loop would recreate the multiple controllers
+         * for the same post_type.
+         */
         $post_types = array_unique(wp_list_pluck($posts, 'post_type'));
-
         $controllers = [];
         foreach ($post_types as $post_type) {
             $controllers[$post_type] = new \WP_REST_Posts_Controller($post_type);
         }
 
-
-        // d($posts, $controllers);
-        if (empty($posts)) {
-            /**
-             * TODO: Does this ever happen?
-             * $posts will always be an array
-             * TODO: Needs to return an error
-             */
-            return rest_ensure_response($posts);
-        }
-
         /**
-         * TODO: WTF happens here? This feels like it was abandoned.
-         * $data is created and populated, but then goes nowhere. It's never retured.
-         *
+         * Convert WP_Post objects to WP_REST_Requests
          */
         $data = [];
-        // d($posts, $data);
-
-        // TODO: This translation to REST should happen separately, (if at all?)
-        //       For regular usage, we can save some ticks and just work with native
-        //       WP_Post objects
         foreach ($posts as $post) {
             $response = $controllers[$post->post_type]->prepare_item_for_response(
                 $post,
@@ -302,18 +283,7 @@ class RelatedPosts extends \WP_REST_Controller
             $data[] = $this->prepare_response_for_collection($response);
         }
 
-        // d($data);
-        $res = [
-            'id' => $id,
-            'posts' => $posts,
-            'params' => $req->get_params(),
-            'weights' => $this->weights,
-        ];
-
-        return rest_ensure_response($posts);
-
-        $err = new \WP_Error(404, 'bad ID');
-        return rest_ensure_response($err);
+        return rest_ensure_response($data);
     }
 
     public function prepare_item_for_response($post, $request)
