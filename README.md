@@ -66,3 +66,37 @@ Set the default for how many posts to retrieve with RelatedPosts::get().
 ### `offset`
 
 use `offset` to return a subset of posts somewhere after the first `$count` posts. 
+
+## REST API
+
+The library automatically registers a REST API endpoint for retrieving related posts programmatically.
+
+### Endpoint
+
+```
+GET /wp-json/ideasonpurpose/v1/related_posts/{id}
+```
+
+- `{id}`: The post ID to find related posts for.
+
+### Query Parameters
+
+- `count` (optional): Number of related posts to return (default: 3, max: 20).
+- `weight_{taxonomy}` (optional): Override default weights. Prefix any taxonomy slug with `weight_` to set its weight. Weights are clamped between 0 and 7.
+  - Example: `weight_post_tag=5&weight_category=2`
+- Aliases are supported:
+  - `weight_type` or `weight_post_type` → `post_type`
+  - `weight_tag` or `weight_post_tag` → `post_tag`v
+
+### Response
+
+Returns an array of post objects in WordPress REST API format, including standard fields like `id`, `title`, `content`, etc.
+
+### Example Request
+
+```
+GET /wp-json/ideasonpurpose/v1/related_posts/123?count=5&weight_category=4&weight_post_tag=2
+```
+
+This fetches 5 related posts for post ID 123, weighting categories 4 times and tags 2 times.
+
