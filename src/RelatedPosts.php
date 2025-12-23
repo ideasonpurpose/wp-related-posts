@@ -71,6 +71,12 @@ use WP_Error;
 class RelatedPosts extends \WP_REST_Controller
 {
     /**
+     * Static flag to ensure REST routes are registered only once
+     */
+    private static $routesRegistered = false;
+    private static $instanceCount = 0;
+
+    /**
      * Placeholders for mocking
      */
     public $ABSPATH;
@@ -159,6 +165,9 @@ class RelatedPosts extends \WP_REST_Controller
 
         $this->setDefaults();
         $this->normalizeArgs($args);
+
+        self::$instanceCount++;
+        error_log("RelatedPosts instance count: " . self::$instanceCount);
     }
 
     /**
