@@ -55,7 +55,7 @@ use WP_Error;
  * different than how we usually do this.
  *
  * 2. Create a new object with no arguments. If there are any arguments passed to
- * the constructor, sip the REST initialization
+ * the constructor, skip the REST initialization
  *
  *
  *
@@ -184,39 +184,6 @@ class RelatedPosts extends \WP_REST_Controller
         ];
     }
 
-    // NOTE: REFACTORED AWAY, UNUSED??
-
-    /*
-     * Set default types from the global $post or $args['post'] if set
-     *   $this->post will be a WP_Post object or null.
-     *
-     * @param array $args
-     * @return void
-     */
-    // public function initPost($args = [])
-    // {
-    //     global $post;
-    //     $this->post = array_key_exists('post', $args) ? $args['post'] : $post;
-    //     $this->post = get_post($this->post); // returns a WP_Post or null
-    // }
-
-    /**
-     * $this->post should always be either a WP_Post object, or null
-     *
-     * If $args contains an array (or a string wrapped) return that unmodified
-     */
-    // public function initTypes($args = []): void
-    // {
-    //     if (array_key_exists('post_types', $args)) {
-    //         $this->types = is_array($args['post_types'])
-    //             ? $args['post_types']
-    //             : [$args['post_types']];
-    //     }
-
-    //     if (!array_key_exists('post_types', $args) && $this->post) {
-    //         $this->types = [$this->post->post_type];
-    //     }
-    // }
 
     /**
      * Register REST routes to return Related Posts
@@ -225,11 +192,14 @@ class RelatedPosts extends \WP_REST_Controller
      */
     public function registerRestRoutes()
     {
-        register_rest_route($this->namespace, "/{$this->rest_base}/(?P<id>[0-9]+)", [
-            'methods' => \WP_REST_Server::READABLE,
-            'callback' => [$this, 'restResponse'],
-            'permission_callback' => '__return_true',
-        ]);
+        if (!self::$routesRegistered) {
+            register_rest_route($this->namespace, "/{$this->rest_base}/(?P<id>[0-9]+)", [
+                'methods' => \WP_REST_Server::READABLE,
+                'callback' => [$this, 'restResponse'],
+                'permission_callback' => '__return_true',
+            ]);
+            self::$routesRegistered = true;
+        }
     }
 
     /**
@@ -286,26 +256,6 @@ class RelatedPosts extends \WP_REST_Controller
         return rest_ensure_response($data);
     }
 
-    // public function prepare_item_for_response($post, $request)
-    // {
-    //     $post_data = [];
-
-    //     $schema = $this->get_item_schema($request);
-
-    //     // We are also renaming the fields to more understandable names.
-    //     if (isset($schema['properties']['id'])) {
-    //         $post_data['id'] = (int) $post->ID;
-    //     }
-
-    //     if (isset($schema['properties']['content'])) {
-    //         $post_data['content'] = apply_filters('the_content', $post->post_content, $post);
-    //     }
-
-    //     return rest_ensure_response($post_data);
-    // }
-
-    /// :TODO: Need to merge input Args on top of the minimal default args
-    //         Weights and post_types should be replaced, not deep-merged
 
     /**
      * Transforms an $args array to ensure valid properties.
@@ -394,62 +344,7 @@ class RelatedPosts extends \WP_REST_Controller
         return $cleanArgs;
     }
 
-    /**
-     * Validate and merge arguments onto defaults
-     *
-     * non-integer weights will be ignored
-     *
-     */
-    // public function validateAndMergeArgs($args)
-    // {
-    //     if (!is_array($args)) {
-    //         return;
-    //     }
 
-    //     /**
-    //      * Ensure weights and types are arrays?
-    //      */
-    //     if (array_key_exists('weights', $args) && is_array($args['weights'])) {
-    //         $integerWeights = [];
-    //         foreach ($args['weights'] as $slug => $val) {
-    //             if (is_numeric($val)) {
-    //                 $integerWeights[$slug] = (int) $val;
-    //             }
-    //         }
-    //         $this->weights = array_merge($this->weights, $integerWeights);
-    //     }
-
-    //     // if (array_key_exists('omit-types', $args) && is_array($args['omit-types'])) {
-    //     //     $this->omitTypes = array_merge($this->omitTypes, $args['omit-types']);
-    //     // }
-
-    //     if (array_key_exists('types', $args) && is_array($args['types'])) {
-    //         $this->types = array_unique(array_merge($this->types, $args['types']));
-    //     }
-
-    //     /**
-    //      * Ensure weights and types are arrays
-    //      */
-
-    //     // try {
-    //     //     //code...
-    //     //     $this->weights = array_merge($this->weights, $args['weights'] ?? []);
-    //     // } catch (\Throwable $th) {
-    //     //     //throw $th;
-    //     // }
-
-    //     // try {
-    //     //     $this->types = array_merge($this->types, $args['types'] ?? []);
-    //     // } catch (\Throwable $th) {
-
-    //     // }
-
-    //     // sort weights so the resulting hash is idempotent (will be hashed with $post->guid for the transient ID)
-    //     ksort($this->weights);
-    //     $this->weights = $this->clampWeights($this->weights);
-
-    //     // d($this);
-    // }
 
     /**
      * Returns a copy of the input $weights array with all values clamped between $min and $max
