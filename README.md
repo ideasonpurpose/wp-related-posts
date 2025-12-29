@@ -1,6 +1,26 @@
 # WordPress Related Posts
 
-A library for selecting related content across post_types based on a set of specified weightings
+A library for selecting related content across post_types based on a set of specified weightings.
+
+## Installation
+
+This package is not listed on Packagist yet, add the following to composer.json then install directly from GitHub:
+
+```json
+{
+  "require": {
+    "ideasonpurpose/wp-related-posts": "dev-main"
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/ideasonpurpose/wp-related-posts"
+    }
+  ]
+}
+```
+
+
 
 ## How it works
 
