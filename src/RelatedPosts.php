@@ -167,7 +167,7 @@ class RelatedPosts extends \WP_REST_Controller
         $this->normalizeArgs($args);
 
         self::$instanceCount++;
-        error_log("RelatedPosts instance count: " . self::$instanceCount);
+        error_log('RelatedPosts instance count: ' . self::$instanceCount);
     }
 
     /**
@@ -192,7 +192,6 @@ class RelatedPosts extends \WP_REST_Controller
             'has_post_thumbnail' => false,
         ];
     }
-
 
     /**
      * Register REST routes to return Related Posts
@@ -256,7 +255,7 @@ class RelatedPosts extends \WP_REST_Controller
         foreach ($posts as $post) {
             $response = $controllers[$post->post_type]->prepare_item_for_response(
                 $post,
-                new \WP_REST_Request()
+                new \WP_REST_Request(),
             );
 
             $data[] = $this->prepare_response_for_collection($response);
@@ -264,7 +263,6 @@ class RelatedPosts extends \WP_REST_Controller
 
         return rest_ensure_response($data);
     }
-
 
     /**
      * Transforms an $args array to ensure valid properties.
@@ -330,7 +328,7 @@ class RelatedPosts extends \WP_REST_Controller
         if (array_key_exists('has_post_thumbnail', $args)) {
             $cleanArgs['has_post_thumbnail'] = filter_var(
                 $args['has_post_thumbnail'],
-                FILTER_VALIDATE_BOOLEAN
+                FILTER_VALIDATE_BOOLEAN,
             );
         }
 
@@ -352,8 +350,6 @@ class RelatedPosts extends \WP_REST_Controller
         $cleanArgs = array_merge($this->defaults, $cleanArgs);
         return $cleanArgs;
     }
-
-
 
     /**
      * Returns a copy of the input $weights array with all values clamped between $min and $max
@@ -464,8 +460,7 @@ class RelatedPosts extends \WP_REST_Controller
         }
 
         /**
-         * If the posts's post_type is included in post_types, then collect
-         * the most recent posts of the same post_type
+         * If the posts's post_type is included in post_types, collect the most recent posts of the same post_type
          */
         if (in_array($post->post_type, $post_types)) {
             $posts = get_posts([
@@ -504,7 +499,7 @@ class RelatedPosts extends \WP_REST_Controller
             $bucketCount = count($postBucket);
             $countsCount = count($counts);
             error_log(
-                "RelatedContent collected {$bucketCount} occurrences of {$countsCount} posts."
+                "RelatedPosts collected {$bucketCount} occurrences of {$countsCount} posts.",
             );
         }
 
